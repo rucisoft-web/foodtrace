@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_qc_release_wizard_form" model="ir.ui.view">
+        <field name="name">wms.qc.release.wizard.form</field>
+        <field name="model">wms.qc.release.wizard</field>
+        <field name="arch" type="xml">
+            <form>
+                <group>
+                    <group>
+                        <field name="quant_id" invisible="1"/>
+                        <field name="product_id"/>
+                        <field name="lot_id"/>
+                        <field name="quantity"/>
+                    </group>
+                    <group>
+                        <field name="qty_good"/>
+                        <field name="good_location_id" required="qty_good &gt; 0"/>
+                        <field name="qty_damage"/>
+                        <field name="reason"/>
+                    </group>
+                </group>
+                <footer>
+                    <button name="action_confirm" type="object" string="Release" class="btn-primary"/>
+                    <button special="cancel" string="Batal"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+</odoo>

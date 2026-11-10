@@ -1,0 +1,49 @@
+[
+  {
+    "additional_information": [
+      {
+        "number": "",
+        "doc_entry": "12298",
+        "vendor_ref_no": "IGU050/CMR/SC/2026 [A]",
+        "remarks": "",
+        "vessel": "",
+        "container": "",
+        "airways_bill_number": "",
+        "pesawat": "",
+        "vendor_do_no": "IGU050/CMR/SC/2026 [A]",
+        "pib_date": "",
+        "pib_number": "",
+        "tgl_invoice": "",
+        "web_trans_id": "12783",
+        "web_trans_no": "POR-261000182"
+      }
+    ],
+    "items": [
+      {
+        "number": null,
+        "po_det_id": "39096",
+        "po_line_no": "0",
+        "item_code": "HID3CIM006",
+        "item_name": "CIMORY CHOCOLATE UHT MILK 750 ML @12 PCS",
+        "uom_id": "PKT",
+        "qty": 3600.0,
+        "remark": "",
+        "pi_number": null,
+        "is_free": "NO",
+        "slaughterhouse": null,
+        "brand_desc": "CIM-CIMORY"
+      }
+    ],
+    "number": "95-SKI-POR-261000182",
+    "inbound_type": "Purchase Order",
+    "remark": null,
+    "id": "",
+    "source": "VL0193",
+    "warehouse": "95-SKI",
+    "user": "indogunasap",
+    "date": "10/26/2026",
+    "status": "Open",
+    "owner": "95-SKI",
+    "obj_type": "22"
+  }
+]

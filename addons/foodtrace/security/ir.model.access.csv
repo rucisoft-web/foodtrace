@@ -1,0 +1,28 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_zone_user,zone user,model_wms_zone_standard,group_wms_operator,1,0,0,0
+access_zone_mgr,zone mgr,model_wms_zone_standard,group_wms_manager,1,1,1,1
+access_temp_user,temp user,model_wms_temperature_log,group_wms_operator,1,1,1,0
+access_temp_mgr,temp mgr,model_wms_temperature_log,group_wms_manager,1,1,1,1
+access_carton_user,carton user,model_wms_carton,group_wms_operator,1,1,1,0
+access_carton_mgr,carton mgr,model_wms_carton,group_wms_manager,1,1,1,1
+access_tpl_user,tpl user,model_wms_barcode_template,group_wms_operator,1,0,0,0
+access_tpl_mgr,tpl mgr,model_wms_barcode_template,group_wms_manager,1,1,1,1
+access_sap_user,sap user,model_wms_sap_document,group_wms_operator,1,0,0,0
+access_sap_mgr,sap mgr,model_wms_sap_document,group_wms_manager,1,1,1,1
+access_sync_user,sync user,model_wms_sync_document,group_wms_operator,1,0,0,0
+access_sync_mgr,sync mgr,model_wms_sync_document,group_wms_manager,1,1,1,1
+access_tally_user,tally user,model_wms_tally_wizard,group_wms_operator,1,1,1,1
+access_qc_release_user,qc release,model_wms_qc_release_wizard,group_wms_manager,1,1,1,1
+access_tally_line_user,tally line user,model_wms_tally_wizard_line,group_wms_operator,1,1,1,1
+access_loading_user,loading user,model_wms_loading,group_wms_operator,1,1,1,0
+access_loading_mgr,loading mgr,model_wms_loading,group_wms_manager,1,1,1,1
+access_pod_user,pod user,model_wms_pod,group_wms_operator,1,1,1,0
+access_pod_mgr,pod mgr,model_wms_pod,group_wms_manager,1,1,1,1
+access_pod_line_user,pod line user,model_wms_pod_line,group_wms_operator,1,1,1,0
+access_pod_line_mgr,pod line mgr,model_wms_pod_line,group_wms_manager,1,1,1,1
+access_check_user,check user,model_wms_inventory_check,group_wms_operator,1,1,1,0
+access_check_mgr,check mgr,model_wms_inventory_check,group_wms_manager,1,1,1,1
+access_check_line_user,check line user,model_wms_inventory_check_line,group_wms_operator,1,1,1,1
+access_butcher_user,butcher user,model_wms_butcher,group_wms_operator,1,1,1,0
+access_butcher_mgr,butcher mgr,model_wms_butcher,group_wms_manager,1,1,1,1
+access_butcher_line_user,butcher line user,model_wms_butcher_line,group_wms_operator,1,1,1,1

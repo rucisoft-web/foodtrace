@@ -1,0 +1,198 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-name="foodtrace.Dashboard">
+        <div class="o_wms_dashboard o_action h-100 overflow-auto">
+            <t t-if="state.data" t-set="d" t-value="state.data"/>
+            <div t-if="state.data" class="container-fluid py-3">
+                <div class="d-flex flex-wrap align-items-center gap-3 mb-3">
+                    <div>
+                        <h2 class="mb-0">Dashboard gudang</h2>
+                        <div class="text-muted"><t t-esc="d.company"/> · <t t-esc="d.warehouse"/></div>
+                    </div>
+                    <div class="ms-auto d-flex gap-2 align-items-center">
+                        <select t-if="d.warehouses.length &gt; 1" class="form-select form-select-sm" t-on-change="onWarehouse">
+                            <t t-foreach="d.warehouses" t-as="w" t-key="w.id">
+                                <option t-att-value="w.id" t-esc="w.name"/>
+                            </t>
+                        </select>
+                        <button class="btn btn-sm btn-secondary" t-on-click="reload"><i class="fa fa-refresh"/> Muat ulang</button>
+                    </div>
+                </div>
+
+                <div class="o_wms_kpis mb-3">
+                    <div class="o_wms_kpi" t-on-click="() => this.open('foodtrace.action_stock_wms')">
+                        <span>Nilai stok</span><strong t-esc="rupiah(d.kpi.value, true)"/>
+                        <small><t t-esc="d.kpi.items"/> item · <t t-esc="d.kpi.lots"/> lot</small>
+                    </div>
+                    <div class="o_wms_kpi" t-on-click="() => this.open('foodtrace.action_carton')">
+                        <span>Karton berat aktual</span><strong t-esc="d.kpi.cartons.toLocaleString('id-ID')"/>
+                        <small>tersedia + karantina</small>
+                    </div>
+                    <div class="o_wms_kpi warn" t-on-click="() => this.open('foodtrace.action_expired_report')">
+                        <span>Expired ≤ 1 bulan</span><strong t-esc="rupiah(d.kpi.near_value, true)"/>
+                        <small><t t-esc="d.kpi.near_count"/> lot · ≤ 3 bulan <t t-esc="rupiah(d.kpi.m3_value, true)"/></small>
+                    </div>
+                    <div t-attf-class="o_wms_kpi {{ d.kpi.expired_value ? 'bad' : '' }}">
+                        <span>Sudah kedaluwarsa</span><strong t-esc="rupiah(d.kpi.expired_value, true)"/>
+                        <small>diblokir, tunggu waste</small>
+                    </div>
+                    <div t-attf-class="o_wms_kpi {{ d.kpi.quarantine ? 'warn' : '' }}"
+                         t-on-click="() => this.open('foodtrace.action_quarantine_stock')">
+                        <span>Hold (QC/karantina)</span><strong t-esc="rupiah(d.kpi.quarantine, true)"/>
+                        <small>menunggu QC release</small>
+                    </div>
+                    <div t-attf-class="o_wms_kpi {{ d.kpi.item_low ? 'warn' : 'good' }}"
+                         t-on-click="() => this.open('foodtrace.action_item_low')">
+                        <span>Item low</span><strong t-esc="d.kpi.item_low"/>
+                        <small>di bawah stok minimum</small>
+                    </div>
+                    <div t-attf-class="o_wms_kpi {{ d.kpi.open_alarms ? 'bad' : 'good' }}"
+                         t-on-click="() => this.open('foodtrace.action_temperature_log')">
+                        <span>Alarm suhu 14 hari</span><strong t-esc="d.kpi.alarms_14d"/>
+                        <small><t t-esc="d.kpi.open_alarms"/> belum ditindaklanjuti</small>
+                    </div>
+                    <div class="o_wms_kpi" t-on-click="() => this.open('foodtrace.action_receipts_wms')">
+                        <span>Pekerjaan terbuka</span>
+                        <strong><t t-esc="d.kpi.receipts_open"/> / <t t-esc="d.kpi.deliveries_open"/></strong>
+                        <small>penerimaan / pengiriman</small>
+                    </div>
+                    <div t-attf-class="o_wms_kpi {{ d.kpi.sap_failed or d.kpi.sync_errors ? 'bad' : 'good' }}"
+                         t-on-click="() => this.open('foodtrace.action_sap_document')">
+                        <span>SAP B1</span>
+                        <strong><t t-esc="d.kpi.sap_failed"/> gagal</strong>
+                        <small><t t-esc="d.kpi.sap_queued"/> antre · <t t-esc="d.kpi.sync_errors"/> sinkron gagal</small>
+                    </div>
+                </div>
+
+                <div class="o_wms_zones mb-3">
+                    <t t-foreach="d.zones" t-as="z" t-key="z.zone">
+                        <div class="o_wms_zone card" t-attf-style="border-top: 4px solid {{ z.color }}">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between align-items-baseline">
+                                    <h4 class="mb-0" t-esc="z.label"/>
+                                    <span class="text-muted small">standar <t t-esc="z.target"/> °C · alarm &gt; <t t-esc="z.alarm"/> °C</span>
+                                </div>
+                                <div class="d-flex gap-4 mt-2">
+                                    <div>
+                                        <div class="text-muted small">Suhu terakhir</div>
+                                        <div t-attf-class="fs-3 fw-bold {{ tempClass(z) }}">
+                                            <t t-if="z.last !== null"><t t-esc="z.last"/> °C</t><t t-else="">-</t>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <div class="text-muted small">Nilai stok</div>
+                                        <div class="fs-5 fw-bold" t-esc="rupiah(z.value, true)"/>
+                                        <div class="small text-muted"><t t-esc="z.items"/> item · <t t-esc="z.lots"/> lot</div>
+                                    </div>
+                                    <div class="flex-grow-1">
+                                        <div class="text-muted small">Okupansi rak <t t-esc="pct(z)"/>%</div>
+                                        <div class="progress mt-1" style="height: 8px">
+                                            <div class="progress-bar" t-attf-style="width: {{ pct(z) }}%; background: {{ z.color }}"/>
+                                        </div>
+                                        <div class="small text-muted mt-1"><t t-esc="z.occupied"/> dari <t t-esc="z.positions"/> posisi · <t t-esc="z.alarms"/> alarm</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </t>
+                </div>
+
+                <div class="o_wms_grid">
+                    <div class="card o_wms_card"><div class="card-body">
+                        <h5>Nilai stok per zona</h5>
+                        <div class="o_wms_canvas"><canvas t-ref="zoneChart"/></div>
+                    </div></div>
+                    <div class="card o_wms_card span2"><div class="card-body">
+                        <h5>Suhu ruang 14 hari (rata-rata dan maksimum harian)</h5>
+                        <div class="o_wms_canvas"><canvas t-ref="tempChart"/></div>
+                    </div></div>
+                    <div class="card o_wms_card span2"><div class="card-body">
+                        <h5>Profil kedaluwarsa stok (nilai)</h5>
+                        <div class="o_wms_canvas"><canvas t-ref="expiryChart"/></div>
+                    </div></div>
+                    <div class="card o_wms_card"><div class="card-body">
+                        <h5>Okupansi rak palet utuh</h5>
+                        <div class="o_wms_canvas"><canvas t-ref="occupancyChart"/></div>
+                    </div></div>
+                    <div class="card o_wms_card span2"><div class="card-body">
+                        <h5>Arus barang 30 hari (nilai masuk dan keluar)</h5>
+                        <div class="o_wms_canvas"><canvas t-ref="flowChart"/></div>
+                    </div></div>
+                    <div class="card o_wms_card"><div class="card-body">
+                        <h5>Stock status (nilai)</h5>
+                        <div class="o_wms_canvas"><canvas t-ref="statusChart"/></div>
+                    </div></div>
+                    <div class="card o_wms_card"><div class="card-body">
+                        <h5>Item low (di bawah minimum)</h5>
+                        <table class="table table-sm o_wms_table">
+                            <tbody>
+                                <t t-foreach="d.item_low" t-as="p" t-key="p.id">
+                                    <tr><td><t t-esc="p.name"/><div class="small text-muted" t-esc="p.code"/></td>
+                                        <td class="text-end text-nowrap"><span class="text-danger fw-bold" t-esc="p.qty"/> / <t t-esc="p.min"/> <t t-esc="p.uom"/></td></tr>
+                                </t>
+                                <tr t-if="!d.item_low.length"><td class="text-muted">Semua item di atas minimum.</td></tr>
+                            </tbody>
+                        </table>
+                    </div></div>
+                    <div class="card o_wms_card"><div class="card-body">
+                        <h5>Status posting SAP B1</h5>
+                        <div class="o_wms_canvas"><canvas t-ref="sapChart"/></div>
+                    </div></div>
+                    <div class="card o_wms_card span2"><div class="card-body">
+                        <h5>Nilai stok per item group</h5>
+                        <div class="o_wms_canvas tall"><canvas t-ref="groupChart"/></div>
+                    </div></div>
+                    <div class="card o_wms_card"><div class="card-body">
+                        <h5>10 item nilai terbesar</h5>
+                        <table class="table table-sm o_wms_table">
+                            <tbody>
+                                <t t-foreach="d.top_items" t-as="it" t-key="it.id">
+                                    <tr>
+                                        <td><span class="o_wms_dot" t-attf-style="background: {{ zoneColor[it.zone] or '#94a3b8' }}"/>
+                                            <span t-esc="it.name"/><div class="small text-muted" t-esc="it.code"/></td>
+                                        <td class="text-end text-nowrap" t-esc="rupiah(it.value, true)"/>
+                                    </tr>
+                                </t>
+                            </tbody>
+                        </table>
+                    </div></div>
+                    <div class="card o_wms_card span2"><div class="card-body">
+                        <h5>Lot kedaluwarsa ≤ 30 hari (FEFO: kirim lebih dulu)</h5>
+                        <table class="table table-sm o_wms_table">
+                            <thead><tr><th>Item</th><th>Lot</th><th>Lokasi</th><th class="text-end">Sisa hari</th><th class="text-end">Qty</th><th class="text-end">Nilai</th></tr></thead>
+                            <tbody>
+                                <t t-foreach="d.near_expiry" t-as="n" t-key="n_index">
+                                    <tr t-attf-class="{{ n.days &lt; 0 ? 'table-danger' : (n.days &lt;= 7 ? 'table-warning' : '') }}">
+                                        <td><span class="o_wms_dot" t-attf-style="background: {{ zoneColor[n.zone] }}"/><t t-esc="n.product"/></td>
+                                        <td t-esc="n.lot"/>
+                                        <td t-esc="n.location"/>
+                                        <td class="text-end" t-esc="n.days"/>
+                                        <td class="text-end text-nowrap"><t t-esc="n.qty"/> <t t-esc="n.uom"/></td>
+                                        <td class="text-end text-nowrap" t-esc="rupiah(n.value, true)"/>
+                                    </tr>
+                                </t>
+                                <tr t-if="!d.near_expiry.length"><td colspan="6" class="text-muted">Tidak ada.</td></tr>
+                            </tbody>
+                        </table>
+                    </div></div>
+                    <div class="card o_wms_card"><div class="card-body">
+                        <h5>Alarm suhu belum ditindaklanjuti</h5>
+                        <table class="table table-sm o_wms_table">
+                            <tbody>
+                                <t t-foreach="d.open_alarms" t-as="a" t-key="a.id">
+                                    <tr>
+                                        <td><span class="o_wms_dot" t-attf-style="background: {{ zoneColor[a.zone] }}"/>
+                                            <t t-esc="zoneLabel[a.zone]"/> · <t t-esc="a.source"/>
+                                            <div class="small text-muted"><t t-esc="a.date"/> <t t-esc="a.location or a.picking"/></div></td>
+                                        <td class="text-end text-danger fw-bold text-nowrap"><t t-esc="a.temperature"/> °C</td>
+                                    </tr>
+                                </t>
+                                <tr t-if="!d.open_alarms.length"><td class="text-muted">Semua alarm sudah ditindaklanjuti.</td></tr>
+                            </tbody>
+                        </table>
+                    </div></div>
+                </div>
+            </div>
+        </div>
+    </t>
+</templates>

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="action_hht" model="ir.actions.client">
+        <field name="name">Mobile Terminal</field>
+        <field name="tag">foodtrace_mobile.hht</field>
+    </record>
+    <menuitem id="menu_hht_root" name="FoodTrace Handheld" web_icon="foodtrace_mobile,static/description/icon.png"
+              action="action_hht" sequence="44" groups="foodtrace.group_wms_operator"/>
+    <menuitem id="menu_hht_in_wms" name="Mobile Terminal" parent="foodtrace.menu_wms_root"
+              action="action_hht" sequence="2"/>
+</odoo>

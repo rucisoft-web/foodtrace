@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Laporan sesuai URS Largo. Semua list bisa diekspor ke XLSX/CSV dari menu Aksi. -->
+    <record id="view_move_line_report_wms" model="ir.ui.view">
+        <field name="name">stock.move.line.report.wms</field>
+        <field name="model">stock.move.line</field>
+        <field name="priority">90</field>
+        <field name="arch" type="xml">
+            <list create="0" edit="0">
+                <field name="date"/>
+                <field name="reference"/>
+                <field name="product_id"/>
+                <field name="lot_id"/>
+                <field name="location_id"/>
+                <field name="location_dest_id"/>
+                <field name="package_id" string="LPN asal" optional="hide"/>
+                <field name="result_package_id" string="LPN tujuan" optional="show"/>
+                <field name="owner_id" optional="hide"/>
+                <field name="quantity" sum="Total"/>
+                <field name="product_uom_id" string="UoM"/>
+                <field name="picking_partner_id" optional="show"/>
+                <field name="create_uid" string="Operator" optional="show"/>
+            </list>
+        </field>
+    </record>
+    <record id="action_material_in" model="ir.actions.act_window">
+        <field name="name">Material In</field>
+        <field name="res_model">stock.move.line</field>
+        <field name="view_mode">list,pivot,graph</field>
+        <field name="view_ids" eval="[(5, 0, 0), (0, 0, {'view_mode': 'list', 'view_id': ref('view_move_line_report_wms')})]"/>
+        <field name="domain">[('state', '=', 'done'), ('picking_code', '=', 'incoming')]</field>
+    </record>
+    <record id="action_material_out" model="ir.actions.act_window">
+        <field name="name">Material Out</field>
+        <field name="res_model">stock.move.line</field>
+        <field name="view_mode">list,pivot,graph</field>
+        <field name="view_ids" eval="[(5, 0, 0), (0, 0, {'view_mode': 'list', 'view_id': ref('view_move_line_report_wms')})]"/>
+        <field name="domain">[('state', '=', 'done'), ('picking_code', '=', 'outgoing')]</field>
+    </record>
+    <record id="action_transfer_log" model="ir.actions.act_window">
+        <field name="name">Transfer Log</field>
+        <field name="res_model">stock.move.line</field>
+        <field name="view_mode">list,pivot</field>
+        <field name="view_ids" eval="[(5, 0, 0), (0, 0, {'view_mode': 'list', 'view_id': ref('view_move_line_report_wms')})]"/>
+        <field name="domain">[('state', '=', 'done'), ('picking_code', '=', 'internal')]</field>
+    </record>
+    <record id="action_cycle_count_report" model="ir.actions.act_window">
+        <field name="name">Cycle Count / Adjustment Report</field>
+        <field name="res_model">stock.move.line</field>
+        <field name="view_mode">list,pivot</field>
+        <field name="view_ids" eval="[(5, 0, 0), (0, 0, {'view_mode': 'list', 'view_id': ref('view_move_line_report_wms')})]"/>
+        <field name="domain">[('state', '=', 'done'), ('move_id.is_inventory', '=', True)]</field>
+    </record>
+    <record id="action_stock_card" model="ir.actions.act_window">
+        <field name="name">Stock Card</field>
+        <field name="res_model">stock.move.line</field>
+        <field name="view_mode">list,pivot</field>
+        <field name="view_ids" eval="[(5, 0, 0), (0, 0, {'view_mode': 'list', 'view_id': ref('view_move_line_report_wms')})]"/>
+        <field name="domain">[('state', '=', 'done')]</field>
+        <field name="context">{'search_default_groupby_product_id': 1}</field>
+    </record>
+    <record id="action_item_low" model="ir.actions.act_window">
+        <field name="name">Item Low</field>
+        <field name="res_model">product.product</field>
+        <field name="view_mode">list,form</field>
+        <field name="domain">[('wms_is_low', '=', True)]</field>
+    </record>
+    <record id="action_warehouse_transfer" model="ir.actions.act_window">
+        <field name="name">Warehouse Transfer</field>
+        <field name="res_model">stock.picking</field>
+        <field name="view_mode">list,form</field>
+        <field name="domain">['|', ('wms_inbound_type', '=', 'transfer'), ('wms_outbound_type', '=', 'transfer')]</field>
+    </record>
+    <record id="action_cycle_count" model="ir.actions.act_window">
+        <field name="name">Cycle Count / Stock Take</field>
+        <field name="res_model">stock.quant</field>
+        <field name="view_mode">list</field>
+        <field name="view_id" ref="stock.view_stock_quant_tree_inventory_editable"/>
+        <field name="domain">[('location_id.usage', '=', 'internal')]</field>
+        <field name="context">{'inventory_mode': True, 'search_default_my_count': 0}</field>
+    </record>
+    <record id="action_source_master" model="ir.actions.act_window">
+        <field name="name">Source Master</field>
+        <field name="res_model">res.partner</field>
+        <field name="view_mode">list,form</field>
+        <field name="domain">[('supplier_rank', '&gt;', 0)]</field>
+        <field name="context">{'default_supplier_rank': 1, 'res_partner_search_mode': 'supplier'}</field>
+    </record>
+    <record id="action_destination_master" model="ir.actions.act_window">
+        <field name="name">Destination Master</field>
+        <field name="res_model">res.partner</field>
+        <field name="view_mode">list,form</field>
+        <field name="domain">[('customer_rank', '&gt;', 0)]</field>
+        <field name="context">{'default_customer_rank': 1, 'res_partner_search_mode': 'customer'}</field>
+    </record>
+</odoo>

@@ -1,0 +1,147 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Active Inventory: posisi stok realtime dengan enam status ala Largo. -->
+    <record id="view_quant_list_wms" model="ir.ui.view">
+        <field name="name">stock.quant.list.wms</field>
+        <field name="model">stock.quant</field>
+        <field name="priority">90</field>
+        <field name="arch" type="xml">
+            <list create="0" decoration-danger="wms_status == 'damage'" decoration-warning="wms_status == 'hold'"
+                  decoration-info="wms_status in ('receiving', 'picked')">
+                <field name="product_id"/>
+                <field name="wms_zone"/>
+                <field name="location_id"/>
+                <field name="package_id" string="LPN"/>
+                <field name="lot_id"/>
+                <field name="wms_expiration_date"/>
+                <field name="owner_id" optional="hide"/>
+                <field name="in_date" optional="hide"/>
+                <field name="quantity" sum="Total"/>
+                <field name="reserved_quantity" optional="show"/>
+                <field name="product_uom_id" string="UoM"/>
+                <field name="wms_status" widget="badge" decoration-success="wms_status == 'available'"
+                       decoration-warning="wms_status == 'hold'" decoration-danger="wms_status == 'damage'"/>
+                <button name="action_wms_qc_hold" type="object" string="QC Hold" icon="fa-lock"
+                        invisible="wms_status != 'available'" groups="foodtrace.group_wms_manager"/>
+                <button name="action_wms_qc_release" type="object" string="QC Release" icon="fa-unlock"
+                        invisible="wms_status != 'hold'" groups="foodtrace.group_wms_manager"/>
+            </list>
+        </field>
+    </record>
+    <record id="view_quant_pivot_wms" model="ir.ui.view">
+        <field name="name">stock.quant.pivot.wms</field>
+        <field name="model">stock.quant</field>
+        <field name="priority">90</field>
+        <field name="arch" type="xml">
+            <pivot>
+                <field name="wms_zone" type="row"/>
+                <field name="wms_status" type="col"/>
+                <field name="quantity" type="measure"/>
+            </pivot>
+        </field>
+    </record>
+    <record id="view_quant_search_wms" model="ir.ui.view">
+        <field name="name">stock.quant.search.wms</field>
+        <field name="model">stock.quant</field>
+        <field name="inherit_id" ref="stock.quant_search_view"/>
+        <field name="arch" type="xml">
+            <xpath expr="//search" position="inside">
+                <separator/>
+                <filter name="st_available" string="Available" domain="[('wms_status', '=', 'available')]"/>
+                <filter name="st_hold" string="Hold" domain="[('wms_status', '=', 'hold')]"/>
+                <filter name="st_damage" string="Damage" domain="[('wms_status', '=', 'damage')]"/>
+                <filter name="st_receiving" string="Receiving" domain="[('wms_status', '=', 'receiving')]"/>
+                <filter name="st_picked" string="Picked" domain="[('wms_status', '=', 'picked')]"/>
+                <separator/>
+                <filter name="exp_expired" string="Sudah expired" domain="[('wms_expiration_date', '&lt;', context_today().strftime('%Y-%m-%d'))]"/>
+                <filter name="exp_1m" string="Expired ≤ 1 bulan" domain="[('wms_expiration_date', '&gt;=', context_today().strftime('%Y-%m-%d')), ('wms_expiration_date', '&lt;', (context_today() + relativedelta(months=1)).strftime('%Y-%m-%d'))]"/>
+                <filter name="exp_2m" string="Expired ≤ 2 bulan" domain="[('wms_expiration_date', '&gt;=', context_today().strftime('%Y-%m-%d')), ('wms_expiration_date', '&lt;', (context_today() + relativedelta(months=2)).strftime('%Y-%m-%d'))]"/>
+                <filter name="exp_3m" string="Expired ≤ 3 bulan" domain="[('wms_expiration_date', '&gt;=', context_today().strftime('%Y-%m-%d')), ('wms_expiration_date', '&lt;', (context_today() + relativedelta(months=3)).strftime('%Y-%m-%d'))]"/>
+                <filter name="exp_4m" string="Expired ≤ 4 bulan" domain="[('wms_expiration_date', '&gt;=', context_today().strftime('%Y-%m-%d')), ('wms_expiration_date', '&lt;', (context_today() + relativedelta(months=4)).strftime('%Y-%m-%d'))]"/>
+                <separator/>
+                <filter name="g_wms_zone" string="Zona" context="{'group_by': 'wms_zone'}"/>
+                <filter name="g_wms_status" string="Status stok" context="{'group_by': 'wms_status'}"/>
+            </xpath>
+        </field>
+    </record>
+    <record id="view_package_list_wms" model="ir.ui.view">
+        <field name="name">stock.quant.package.list.wms</field>
+        <field name="model">stock.quant.package</field>
+        <field name="priority">90</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="name" string="LPN"/>
+                <field name="wms_product_id"/>
+                <field name="wms_lot_id"/>
+                <field name="wms_qty"/>
+                <field name="wms_expiration_date"/>
+                <field name="location_id"/>
+                <field name="wms_pallet_no" optional="show"/>
+                <field name="wms_pack_date" optional="hide"/>
+                <field name="wms_status" widget="badge"/>
+            </list>
+        </field>
+    </record>
+    <record id="view_package_form_wms" model="ir.ui.view">
+        <field name="name">stock.quant.package.form.wms</field>
+        <field name="model">stock.quant.package</field>
+        <field name="inherit_id" ref="stock.view_quant_package_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//sheet/group" position="inside">
+                <group string="Info LPN (tally)">
+                    <field name="wms_product_id"/>
+                    <field name="wms_lot_id"/>
+                    <field name="wms_expiration_date"/>
+                    <field name="wms_mfg_date"/>
+                    <field name="wms_pack_date"/>
+                    <field name="wms_pallet_no"/>
+                    <field name="wms_remark"/>
+                </group>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="action_stock_status" model="ir.actions.act_window">
+        <field name="name">Stock Status</field>
+        <field name="res_model">stock.quant</field>
+        <field name="view_mode">pivot,list</field>
+        <field name="view_ids" eval="[(5, 0, 0), (0, 0, {'view_mode': 'pivot', 'view_id': ref('view_quant_pivot_wms')}), (0, 0, {'view_mode': 'list', 'view_id': ref('view_quant_list_wms')})]"/>
+        <field name="domain">[('location_id.usage', '=', 'internal'), ('quantity', '>', 0)]</field>
+    </record>
+    <record id="action_stock_wms" model="ir.actions.act_window">
+        <field name="name">Active Inventory</field>
+        <field name="res_model">stock.quant</field>
+        <field name="view_mode">list,pivot</field>
+        <field name="view_ids" eval="[(5, 0, 0), (0, 0, {'view_mode': 'list', 'view_id': ref('view_quant_list_wms')}), (0, 0, {'view_mode': 'pivot', 'view_id': ref('view_quant_pivot_wms')})]"/>
+        <field name="domain">[('location_id.usage', '=', 'internal'), ('quantity', '>', 0)]</field>
+    </record>
+    <record id="action_quarantine_stock" model="ir.actions.act_window">
+        <field name="name">Stok Hold</field>
+        <field name="res_model">stock.quant</field>
+        <field name="view_mode">list</field>
+        <field name="view_ids" eval="[(5, 0, 0), (0, 0, {'view_mode': 'list', 'view_id': ref('view_quant_list_wms')})]"/>
+        <field name="domain">[('wms_status', '=', 'hold'), ('quantity', '>', 0)]</field>
+    </record>
+    <record id="action_lpn_list" model="ir.actions.act_window">
+        <field name="name">LPN List</field>
+        <field name="res_model">stock.quant.package</field>
+        <field name="view_mode">list,form</field>
+        <field name="view_ids" eval="[(5, 0, 0), (0, 0, {'view_mode': 'list', 'view_id': ref('view_package_list_wms')})]"/>
+    </record>
+    <record id="action_qc_hold" model="ir.actions.act_window">
+        <field name="name">QC Hold / Release</field>
+        <field name="res_model">stock.quant</field>
+        <field name="view_mode">list</field>
+        <field name="view_ids" eval="[(5, 0, 0), (0, 0, {'view_mode': 'list', 'view_id': ref('view_quant_list_wms')})]"/>
+        <field name="domain">[('location_id.usage', '=', 'internal'), ('quantity', '>', 0)]</field>
+        <field name="context">{'search_default_st_hold': 1}</field>
+    </record>
+    <record id="action_expired_report" model="ir.actions.act_window">
+        <field name="name">Expired Report</field>
+        <field name="res_model">stock.quant</field>
+        <field name="view_mode">list,pivot</field>
+        <field name="view_ids" eval="[(5, 0, 0), (0, 0, {'view_mode': 'list', 'view_id': ref('view_quant_list_wms')})]"/>
+        <field name="domain">[('location_id.usage', '=', 'internal'), ('quantity', '>', 0), ('wms_expiration_date', '!=', False)]</field>
+        <field name="context">{'search_default_exp_3m': 1}</field>
+    </record>
+</odoo>

@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_carton_list" model="ir.ui.view">
+        <field name="name">wms.carton.list</field>
+        <field name="model">wms.carton</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="name"/>
+                <field name="product_id"/>
+                <field name="lot_id"/>
+                <field name="expiration_date"/>
+                <field name="weight_kg" sum="Total kg"/>
+                <field name="zone"/>
+                <field name="location_id"/>
+                <field name="package_id" optional="show"/>
+                <field name="owner_id" optional="hide"/>
+                <field name="manual_weight" optional="hide"/>
+                <field name="state" widget="badge" decoration-success="state == 'available'"
+                       decoration-warning="state == 'quarantine'" decoration-muted="state in ('shipped', 'waste')"/>
+            </list>
+        </field>
+    </record>
+    <record id="view_carton_form" model="ir.ui.view">
+        <field name="name">wms.carton.form</field>
+        <field name="model">wms.carton</field>
+        <field name="arch" type="xml">
+            <form>
+                <header><field name="state" widget="statusbar"/></header>
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="name"/>
+                            <field name="product_id"/>
+                            <field name="lot_id"/>
+                            <field name="expiration_date"/>
+                            <field name="weight_kg"/>
+                            <field name="manual_weight"/>
+                        </group>
+                        <group>
+                            <field name="location_id"/>
+                            <field name="package_id"/>
+                            <field name="owner_id"/>
+                            <field name="in_picking_id"/>
+                            <field name="out_picking_id"/>
+                            <field name="raw_barcode"/>
+                        </group>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+    <record id="view_carton_search" model="ir.ui.view">
+        <field name="name">wms.carton.search</field>
+        <field name="model">wms.carton</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="name"/>
+                <field name="product_id"/>
+                <field name="lot_id"/>
+                <field name="package_id"/>
+                <filter name="available" string="Tersedia" domain="[('state', '=', 'available')]"/>
+                <filter name="quarantine" string="Karantina" domain="[('state', '=', 'quarantine')]"/>
+                <group expand="0" string="Kelompok">
+                    <filter name="g_product" string="Item" context="{'group_by': 'product_id'}"/>
+                    <filter name="g_zone" string="Zona" context="{'group_by': 'zone'}"/>
+                    <filter name="g_lot" string="Lot" context="{'group_by': 'lot_id'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+    <record id="action_carton" model="ir.actions.act_window">
+        <field name="name">Karton</field>
+        <field name="res_model">wms.carton</field>
+        <field name="view_mode">list,form</field>
+        <field name="context">{'search_default_available': 1}</field>
+    </record>
+</odoo>

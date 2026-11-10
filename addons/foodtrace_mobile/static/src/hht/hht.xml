@@ -1,0 +1,378 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+    <t t-name="foodtrace_mobile.ScanInput">
+        <div class="o_hht_scan">
+            <i class="fa fa-barcode"/>
+            <input t-ref="input" t-att-type="props.type or 'text'" autocomplete="off" inputmode="text"
+                   t-att-placeholder="props.placeholder or 'Scan barcode'" t-on-keydown="onKey"/>
+        </div>
+    </t>
+
+    <t t-name="foodtrace_mobile.Hht">
+        <div class="o_hht" t-att-class="{ 'o_hht_busy': state.busy }">
+            <header class="o_hht_top">
+                <button t-if="state.screen !== 'home'" class="o_hht_back" t-on-click="() => this.goHome()">
+                    <i class="fa fa-home"/>
+                </button>
+                <div class="o_hht_title">
+                    <t t-if="state.screen === 'home'">FoodTrace Handheld</t>
+                    <t t-elif="state.screen === 'receipts'">Receiving</t>
+                    <t t-elif="state.screen === 'receipt'">Receiving <t t-esc="state.receipt?.name"/></t>
+                    <t t-elif="state.screen === 'putaway'">Put away / Bin transfer</t>
+                    <t t-elif="state.screen === 'deliveries'">Picking</t>
+                    <t t-elif="state.screen === 'delivery'">Picking <t t-esc="state.delivery?.name"/></t>
+                    <t t-elif="state.screen === 'check'">Checker</t>
+                    <t t-elif="state.screen === 'loadings'">Loading</t>
+                    <t t-elif="state.screen === 'loading'">Loading <t t-esc="state.loading?.name"/></t>
+                    <t t-elif="state.screen === 'ic'">Inventory check</t>
+                    <t t-elif="state.screen === 'butcher'">Butcher out</t>
+                    <t t-elif="state.screen === 'count'">Cycle count (buta)</t>
+                    <t t-elif="state.screen === 'temp'">Suhu ruang</t>
+                    <t t-elif="state.screen === 'lookup'">Cek stok</t>
+                    <t t-elif="state.screen === 'hold'">QC hold</t>
+                </div>
+                <i t-if="state.busy" class="fa fa-circle-o-notch fa-spin"/>
+            </header>
+
+            <div t-if="state.msg" class="o_hht_msg" t-att-class="state.ok ? 'o_ok' : 'o_err'" t-on-click="() => (this.state.msg = null)">
+                <t t-esc="state.msg"/>
+            </div>
+
+            <main class="o_hht_body">
+                <!-- HOME -->
+                <t t-if="state.screen === 'home'">
+                    <div class="o_hht_user" t-if="state.home">
+                        <t t-esc="state.home.user"/> · <t t-esc="state.home.warehouse"/>
+                    </div>
+                    <div class="o_hht_group">Inbound</div>
+                    <div class="o_hht_tiles">
+                        <button class="o_tile o_in" t-on-click="() => this.open('receipts')">
+                            <i class="fa fa-truck"/><span>Receiving</span>
+                            <b t-if="state.home?.receipts" t-esc="state.home.receipts"/>
+                        </button>
+                        <button class="o_tile o_in" t-on-click="() => this.open('putaway')">
+                            <i class="fa fa-arrows"/><span>Put away / Transfer</span>
+                        </button>
+                    </div>
+                    <div class="o_hht_group">Outbound</div>
+                    <div class="o_hht_tiles">
+                        <button class="o_tile o_out" t-on-click="() => this.open('deliveries')">
+                            <i class="fa fa-shopping-basket"/><span>Picking</span>
+                            <b t-if="state.home?.deliveries" t-esc="state.home.deliveries"/>
+                        </button>
+                        <button class="o_tile o_out" t-on-click="() => this.open('check')">
+                            <i class="fa fa-check-square-o"/><span>Checker</span>
+                            <b t-if="state.home?.staged" t-esc="state.home.staged"/>
+                        </button>
+                        <button class="o_tile o_out" t-on-click="() => this.open('loadings')">
+                            <i class="fa fa-truck fa-flip-horizontal"/><span>Loading</span>
+                            <b t-if="state.home?.loadings" t-esc="state.home.loadings"/>
+                        </button>
+                    </div>
+                    <div class="o_hht_group">Inventory</div>
+                    <div class="o_hht_tiles">
+                        <button class="o_tile o_inv" t-on-click="() => this.open('ic')">
+                            <i class="fa fa-list-alt"/><span>Inventory check</span>
+                        </button>
+                        <button class="o_tile o_inv" t-on-click="() => this.open('count')">
+                            <i class="fa fa-calculator"/><span>Cycle count</span>
+                        </button>
+                        <button class="o_tile o_inv" t-on-click="() => this.open('lookup')">
+                            <i class="fa fa-search"/><span>Cek stok</span>
+                        </button>
+                        <button class="o_tile o_inv" t-on-click="() => this.open('butcher')">
+                            <i class="fa fa-cutlery"/><span>Butcher out</span>
+                        </button>
+                    </div>
+                    <div class="o_hht_group">QA</div>
+                    <div class="o_hht_tiles">
+                        <button class="o_tile o_qa" t-on-click="() => this.open('temp')">
+                            <i class="fa fa-thermometer-half"/><span>Suhu ruang</span>
+                            <b t-if="state.home?.alarms" class="o_alarm" t-esc="state.home.alarms"/>
+                        </button>
+                        <button class="o_tile o_qa" t-on-click="() => this.open('hold')">
+                            <i class="fa fa-ban"/><span>QC hold</span>
+                            <b t-if="state.home?.hold" t-esc="state.home.hold"/>
+                        </button>
+                    </div>
+                </t>
+
+                <!-- RECEIPTS LIST -->
+                <t t-elif="state.screen === 'receipts'">
+                    <ScanInput placeholder="'Scan nomor PO / dokumen'" onScan="(c) => this.openReceipt(null, c)"/>
+                    <div t-if="!state.list.length" class="o_hht_empty">Tidak ada penerimaan terbuka.</div>
+                    <button t-foreach="state.list" t-as="p" t-key="p.id" class="o_hht_card" t-on-click="() => this.openReceipt(p.id)">
+                        <div class="o_row"><b t-esc="p.name"/><span class="o_badge" t-esc="p.date"/></div>
+                        <div t-esc="p.partner"/>
+                        <div class="o_muted"><t t-esc="p.origin"/> · <t t-esc="p.lines"/> item
+                            <span t-if="p.needs_temp" class="o_badge o_cold">dingin</span></div>
+                    </button>
+                </t>
+
+                <!-- RECEIPT -->
+                <t t-elif="state.screen === 'receipt' and state.receipt">
+                    <t t-set="r" t-value="state.receipt"/>
+                    <div class="o_hht_box" t-if="r.needs_temp">
+                        <div class="o_row">
+                            <b>Suhu produk / truk</b>
+                            <span t-if="r.temp_logged" t-att-class="'o_badge ' + (r.temp_alarm ? 'o_bad' : 'o_good')"
+                                  t-esc="r.temp_alarm ? 'ALARM → karantina' : 'OK'"/>
+                        </div>
+                        <div class="o_row">
+                            <select t-model="state.tempZone">
+                                <option t-foreach="r.zones" t-as="z" t-key="z" t-att-value="z" t-esc="zone[z]"/>
+                            </select>
+                            <input type="number" step="0.1" placeholder="°C" inputmode="decimal"
+                                   t-on-change="(ev) => this.onTempInput(ev, 'receipt', r.id)"/>
+                        </div>
+                    </div>
+                    <div class="o_hht_lines">
+                        <button t-foreach="r.lines" t-as="l" t-key="l.move_id" class="o_hht_line"
+                                t-att-class="{ o_active: l.move_id === state.activeMove, o_done: l.done >= l.demand }"
+                                t-on-click="() => (this.state.activeMove = l.move_id)">
+                            <div class="o_row"><b t-esc="l.code"/><span t-att-class="'o_zone o_' + l.zone" t-esc="zone[l.zone] or ''"/></div>
+                            <div class="o_small" t-esc="l.product"/>
+                            <div class="o_row o_small"><span><t t-esc="l.done"/> / <t t-esc="l.demand"/> <t t-esc="l.uom"/></span>
+                                <span t-if="l.catch_weight"><t t-esc="l.cartons"/> karton</span></div>
+                        </button>
+                    </div>
+                    <t t-set="line" t-value="activeLine"/>
+                    <div class="o_hht_box" t-if="line">
+                        <t t-if="line.catch_weight or line.has_template">
+                            <ScanInput placeholder="'Scan barcode karton'" onScan="(c) => this.scanCarton(c)"/>
+                            <div class="o_row">
+                                <input type="number" step="0.001" placeholder="Berat manual (kg)" t-model="state.form.weight"/>
+                                <button class="o_btn" t-on-click="() => this.scanCarton(null)">+ karton</button>
+                            </div>
+                        </t>
+                        <t t-else="">
+                            <div class="o_row">
+                                <input type="number" step="any" placeholder="Qty diterima" inputmode="decimal" t-model="state.form.qty"/>
+                                <button class="o_btn" t-on-click="() => this.addQty()">Tambah</button>
+                            </div>
+                        </t>
+                        <div class="o_row" t-if="line.tracking">
+                            <input placeholder="Lot" t-model="state.form.lot"/>
+                            <input type="date" t-model="state.form.expiry"/>
+                        </div>
+                    </div>
+                    <div class="o_hht_box" t-if="openPallet">
+                        <div class="o_row"><b>Palet terbuka <t t-esc="openPallet.lpn"/></b>
+                            <span><t t-esc="openPallet.qty"/> <t t-esc="openPallet.uom"/></span></div>
+                        <div class="o_row">
+                            <input placeholder="No. palet" t-model="state.pallet.no"/>
+                            <input type="date" t-model="state.pallet.mfg" title="Tanggal produksi"/>
+                        </div>
+                        <input placeholder="Remark" t-model="state.pallet.remark"/>
+                        <button class="o_btn o_primary o_wide" t-on-click="() => this.closePallet()">
+                            <i class="fa fa-save"/> Simpan palet &amp; cetak LPN
+                        </button>
+                    </div>
+                    <a t-if="state.labelUrl" class="o_btn o_wide" t-att-href="state.labelUrl" target="_blank">
+                        <i class="fa fa-print"/> Cetak label LPN terakhir
+                    </a>
+                    <div class="o_hht_box">
+                        <input placeholder="No. plat kendaraan" t-model="state.form.plate"/>
+                        <input placeholder="Nama driver" t-model="state.form.driver"/>
+                        <input placeholder="No. surat jalan supplier" t-model="state.form.note"/>
+                        <button class="o_btn o_primary o_wide" t-on-click="() => this.validateReceipt()">
+                            <i class="fa fa-check"/> Selesai receiving
+                        </button>
+                    </div>
+                </t>
+
+                <!-- PUT AWAY: multi LPN -->
+                <t t-elif="state.screen === 'putaway'">
+                    <ScanInput placeholder="state.lpns.length ? 'Scan LPN lain / lokasi tujuan' : 'Scan LPN'"
+                               onScan="(c) => this.scanPutaway(c)"/>
+                    <div t-if="!state.lpns.length" class="o_hht_empty">
+                        Scan satu atau beberapa LPN, lalu scan lokasi tujuan sekali.
+                    </div>
+                    <div t-foreach="state.lpns" t-as="l" t-key="l.lpn" class="o_hht_card">
+                        <div class="o_row"><b t-esc="l.lpn"/>
+                            <button class="o_x" t-on-click="() => this.removeLpn(l.lpn)"><i class="fa fa-times"/></button></div>
+                        <t t-foreach="l.quants" t-as="q" t-key="q.id">
+                            <div class="o_small"><t t-esc="q.code"/> · lot <t t-esc="q.lot"/> · exp <t t-esc="q.expiry"/></div>
+                            <div class="o_small"><t t-esc="q.qty"/> <t t-esc="q.uom"/> @ <t t-esc="q.location"/></div>
+                        </t>
+                        <div class="o_suggest" t-if="l.suggestion">Saran: <b t-esc="l.suggestion.name"/></div>
+                    </div>
+                </t>
+
+                <!-- PICKING LIST -->
+                <t t-elif="state.screen === 'deliveries'">
+                    <ScanInput placeholder="'Scan picking job / dokumen'" onScan="(c) => this.openDelivery(null, c)"/>
+                    <t t-if="state.jobs.length">
+                        <div class="o_hht_group">Picking job</div>
+                        <button t-foreach="state.jobs" t-as="j" t-key="j.id" class="o_hht_card o_job"
+                                t-on-click="() => this.openDelivery(null, null, j.id)">
+                            <div class="o_row"><b t-esc="j.name"/><span class="o_badge"><t t-esc="j.ready"/>%</span></div>
+                            <div class="o_muted"><t t-esc="j.description"/> · <t t-esc="j.docs"/> dokumen</div>
+                        </button>
+                    </t>
+                    <div class="o_hht_group">Outbound document</div>
+                    <div t-if="!state.list.length" class="o_hht_empty">Tidak ada pengiriman terbuka.</div>
+                    <button t-foreach="state.list" t-as="p" t-key="p.id" class="o_hht_card" t-on-click="() => this.openDelivery(p.id)">
+                        <div class="o_row"><b t-esc="p.name"/>
+                            <span t-if="p.priority" class="o_badge o_bad" t-esc="p.priority"/></div>
+                        <div t-esc="p.partner"/>
+                        <div class="o_muted"><t t-esc="p.group"/> · <t t-esc="p.date"/> · <t t-esc="p.lines"/> item</div>
+                    </button>
+                </t>
+
+                <!-- PICKING -->
+                <t t-elif="state.screen === 'delivery' and state.delivery">
+                    <t t-set="d" t-value="state.delivery"/>
+                    <div class="o_muted" t-if="d.batch"><t t-esc="d.docs.join(', ')"/></div>
+                    <t t-set="t" t-value="task"/>
+                    <div class="o_hht_box o_task" t-if="t">
+                        <div class="o_step" t-att-class="{ o_ok: state.pickLocationOk }">
+                            1. Ke lokasi <b t-esc="t.location"/>
+                        </div>
+                        <div class="o_step">2. Ambil <b><t t-esc="t.qty"/> <t t-esc="t.uom"/></b> <t t-esc="t.code"/></div>
+                        <div class="o_small" t-esc="t.product"/>
+                        <div class="o_small">Lot <b t-esc="t.lot"/> · exp <b t-esc="t.expiry"/>
+                            <t t-if="t.lpn"> · LPN <b t-esc="t.lpn"/></t></div>
+                        <div class="o_small o_muted" t-if="d.batch">Untuk <t t-esc="t.doc"/> · <t t-esc="t.customer"/></div>
+                        <ScanInput t-if="!state.pickLocationOk" placeholder="'Scan lokasi'" onScan="(c) => this.scanPickLocation(c)"/>
+                        <t t-else="">
+                            <input type="number" step="any" placeholder="Qty (kosong = semua)" t-model="state.form.qty"/>
+                            <ScanInput placeholder="'Scan LPN / lot / item'" onScan="(c) => this.scanPickItem(c)"/>
+                        </t>
+                    </div>
+                    <div class="o_hht_box" t-if="allPicked">
+                        <b>Semua sudah diambil.</b>
+                        <ScanInput placeholder="'Scan lokasi outbound staging'" onScan="(c) => this.scanStaging(c)"/>
+                        <button class="o_btn o_wide" t-if="!d.batch" t-on-click="() => this.validateDelivery()">
+                            Langsung Goods Issue (tanpa loading job)
+                        </button>
+                    </div>
+                    <div class="o_hht_box o_warn" t-if="d.short.length">
+                        <b>Stok kurang:</b>
+                        <div t-foreach="d.short" t-as="s" t-key="s_index" class="o_small">
+                            <t t-esc="s.product"/>: kurang <t t-esc="s.missing"/> <t t-esc="s.uom"/>
+                        </div>
+                    </div>
+                    <div class="o_hht_lines">
+                        <button t-foreach="d.tasks" t-as="x" t-key="x.id" class="o_hht_line"
+                                t-att-class="{ o_active: x.id === state.activeTask, o_done: x.picked }"
+                                t-on-click="() => this.selectTask(x)">
+                            <div class="o_row"><b t-esc="x.location"/><span t-att-class="'o_zone o_' + x.zone" t-esc="zone[x.zone] or ''"/></div>
+                            <div class="o_small"><t t-esc="x.code"/> · <t t-esc="x.qty"/> <t t-esc="x.uom"/> · exp <t t-esc="x.expiry"/></div>
+                        </button>
+                    </div>
+                </t>
+
+                <!-- CHECKER -->
+                <t t-elif="state.screen === 'check'">
+                    <ScanInput placeholder="state.check ? 'Scan LPN / lot / item' : 'Scan nomor outbound document'"
+                               onScan="(c) => this.scanCheck(c)"/>
+                    <t t-if="state.check">
+                        <div class="o_hht_box">
+                            <div class="o_row"><b t-esc="state.check.name"/><span class="o_badge" t-esc="state.check.stage"/></div>
+                            <div t-esc="state.check.partner"/>
+                        </div>
+                        <div t-foreach="state.check.lines" t-as="l" t-key="l.id" class="o_hht_line" t-att-class="{ o_done: l.checked }">
+                            <div class="o_row"><b t-esc="l.code"/><span><t t-esc="l.qty"/> <t t-esc="l.uom"/></span></div>
+                            <div class="o_small">Lot <t t-esc="l.lot"/> <t t-if="l.lpn">· <t t-esc="l.lpn"/></t></div>
+                        </div>
+                        <button class="o_btn o_wide" t-on-click="() => (this.state.check = null)">Dokumen lain</button>
+                    </t>
+                </t>
+
+                <!-- LOADING -->
+                <t t-elif="state.screen === 'loadings'">
+                    <div t-if="!state.list.length" class="o_hht_empty">Tidak ada loading job terbuka. Buat di web: Outbound → Loading Job.</div>
+                    <button t-foreach="state.list" t-as="j" t-key="j.id" class="o_hht_card" t-on-click="() => this.openLoading(j)">
+                        <div class="o_row"><b t-esc="j.name"/><span class="o_badge"><t t-esc="j.loaded"/>/<t t-esc="j.lines"/></span></div>
+                        <div><t t-esc="j.plate"/> · <t t-esc="j.driver"/></div>
+                        <div class="o_muted" t-esc="j.docs.join(', ')"/>
+                    </button>
+                </t>
+                <t t-elif="state.screen === 'loading' and state.loading">
+                    <ScanInput placeholder="'Scan LPN / lot / item yang dimuat'" onScan="(c) => this.scanLoad(c)"/>
+                    <div class="o_hht_box">
+                        <div class="o_row"><b><t t-esc="state.loading.plate"/></b><span t-esc="state.loading.driver"/></div>
+                        <div class="o_progress"><div t-att-style="'width:' + (state.loading.lines ? state.loading.loaded / state.loading.lines * 100 : 0) + '%'"/></div>
+                        <div class="o_small"><t t-esc="state.loading.loaded"/> dari <t t-esc="state.loading.lines"/> baris dimuat</div>
+                        <div class="o_muted" t-esc="state.loading.docs.join(', ')"/>
+                    </div>
+                    <button class="o_btn o_primary o_wide" t-att-disabled="state.loading.loaded &lt; state.loading.lines"
+                            t-on-click="() => this.closeLoading()"><i class="fa fa-lock"/> Close loading (Goods Issue)</button>
+                </t>
+
+                <!-- INVENTORY CHECK -->
+                <t t-elif="state.screen === 'ic'">
+                    <ScanInput t-if="!state.ic" placeholder="'Scan LPN atau lokasi'" onScan="(c) => this.scanIc(c)"/>
+                    <t t-if="state.ic">
+                        <div class="o_hht_box"><b t-esc="state.ic.name"/> · <t t-esc="state.ic.title"/></div>
+                        <div t-if="!state.ic.lines.length" class="o_hht_empty">Kosong menurut sistem.</div>
+                        <div t-foreach="state.ic.lines" t-as="l" t-key="l.id" class="o_hht_card">
+                            <div class="o_small"><b t-esc="l.product"/></div>
+                            <div class="o_small">Lot <t t-esc="l.lot"/> <t t-if="l.lpn">· <t t-esc="l.lpn"/></t> · sistem <t t-esc="l.qty"/> <t t-esc="l.uom"/></div>
+                            <div class="o_row">
+                                <input type="number" step="any" t-model="state.icRows[l.id].qty"/>
+                                <input type="date" t-model="state.icRows[l.id].expiry"/>
+                            </div>
+                            <label class="o_small"><input type="checkbox" t-model="state.icRows[l.id].reprint"/> Label rusak, cetak ulang</label>
+                        </div>
+                        <button class="o_btn o_primary o_wide" t-on-click="() => this.submitIc()">Kirim untuk approval</button>
+                    </t>
+                </t>
+
+                <!-- BUTCHER OUT -->
+                <t t-elif="state.screen === 'butcher'">
+                    <input placeholder="Ref. SPK / dokumen" t-model="state.form.note"/>
+                    <input type="number" step="any" placeholder="Qty (kosong = satu LPN)" t-model="state.form.qty"/>
+                    <ScanInput placeholder="'Scan LPN bahan'" onScan="(c) => this.scanButcher(c)"/>
+                    <div class="o_hht_empty">Hasil potong (Butcher In) dicatat di web: Butcher → Butcher In / Repack.</div>
+                </t>
+
+                <!-- CYCLE COUNT -->
+                <t t-elif="state.screen === 'count'">
+                    <ScanInput t-if="!state.count" placeholder="'Scan lokasi'" onScan="(c) => this.scanCountLocation(c)"/>
+                    <t t-if="state.count">
+                        <div class="o_hht_box"><b t-esc="state.count.location"/></div>
+                        <div t-foreach="state.count.lines" t-as="l" t-key="l.id" class="o_hht_card">
+                            <div class="o_small"><b t-esc="l.code"/> <t t-esc="l.product"/></div>
+                            <div class="o_row"><span class="o_small">Lot <t t-esc="l.lot"/></span>
+                                <input type="number" step="any" t-att-placeholder="l.uom" t-model="state.counts[l.id]"/></div>
+                        </div>
+                        <button class="o_btn o_primary o_wide" t-on-click="() => this.submitCount()">Simpan hitungan</button>
+                    </t>
+                </t>
+
+                <!-- TEMP -->
+                <t t-elif="state.screen === 'temp'">
+                    <div class="o_hht_zones">
+                        <button t-foreach="['frozen', 'chilled', 'dry']" t-as="z" t-key="z"
+                                t-att-class="'o_zone_btn o_' + z + (state.tempZone === z ? ' o_active' : '')"
+                                t-on-click="() => (this.state.tempZone = z)" t-esc="zone[z]"/>
+                    </div>
+                    <input class="o_big" type="number" step="0.1" placeholder="Suhu °C" inputmode="decimal"
+                           t-on-change="(ev) => this.onTempInput(ev, 'manual', null)"/>
+                </t>
+
+                <!-- LOOKUP -->
+                <t t-elif="state.screen === 'lookup'">
+                    <ScanInput placeholder="'Scan LPN / lokasi / item / lot'" onScan="(c) => this.scanLookup(c)"/>
+                    <t t-if="state.lookup">
+                        <div class="o_hht_box"><b t-esc="state.lookup.title"/> · total <t t-esc="state.lookup.total"/></div>
+                        <div t-foreach="state.lookup.quants" t-as="q" t-key="q.id" class="o_hht_line">
+                            <div class="o_row"><b t-esc="q.code"/><span t-att-class="'o_badge o_st_' + q.status" t-esc="q.status"/></div>
+                            <div class="o_small"><t t-esc="q.qty"/> <t t-esc="q.uom"/> · lot <t t-esc="q.lot"/> · exp <t t-esc="q.expiry"/></div>
+                            <div class="o_small o_muted"><t t-esc="q.location"/> <t t-if="q.lpn">· <t t-esc="q.lpn"/></t></div>
+                        </div>
+                    </t>
+                </t>
+
+                <!-- HOLD -->
+                <t t-elif="state.screen === 'hold'">
+                    <ScanInput placeholder="'Scan LPN yang ditahan'" onScan="(c) => this.holdLpn(c)"/>
+                    <div class="o_hht_empty">LPN dipindah ke area karantina zonanya. Release dilakukan QA di web.</div>
+                </t>
+            </main>
+        </div>
+    </t>
+</templates>

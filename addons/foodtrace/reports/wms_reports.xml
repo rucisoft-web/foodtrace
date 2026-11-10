@@ -1,0 +1,162 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="paperformat_lpn_label" model="report.paperformat">
+        <field name="name">Label LPN 100x150</field>
+        <field name="format">custom</field>
+        <field name="page_height">150</field>
+        <field name="page_width">100</field>
+        <field name="orientation">Portrait</field>
+        <field name="margin_top">4</field>
+        <field name="margin_bottom">4</field>
+        <field name="margin_left">4</field>
+        <field name="margin_right">4</field>
+        <field name="header_spacing">0</field>
+        <field name="disable_shrinking" eval="True"/>
+        <field name="dpi">96</field>
+    </record>
+
+    <record id="action_report_lpn_label" model="ir.actions.report">
+        <field name="name">Label LPN</field>
+        <field name="model">stock.quant.package</field>
+        <field name="report_type">qweb-pdf</field>
+        <field name="report_name">foodtrace.report_lpn_label</field>
+        <field name="report_file">foodtrace.report_lpn_label</field>
+        <field name="print_report_name">'LPN-%s' % object.name</field>
+        <field name="paperformat_id" ref="paperformat_lpn_label"/>
+        <field name="binding_model_id" eval="False"/>
+    </record>
+    <record id="action_report_manifest" model="ir.actions.report">
+        <field name="name">Manifest muat</field>
+        <field name="model">wms.loading</field>
+        <field name="report_type">qweb-pdf</field>
+        <field name="report_name">foodtrace.report_manifest</field>
+        <field name="report_file">foodtrace.report_manifest</field>
+        <field name="print_report_name">'Manifest-%s' % object.name</field>
+        <field name="binding_model_id" ref="model_wms_loading"/>
+    </record>
+    <record id="action_report_surat_jalan" model="ir.actions.report">
+        <field name="name">Surat jalan</field>
+        <field name="model">stock.picking</field>
+        <field name="report_type">qweb-pdf</field>
+        <field name="report_name">foodtrace.report_surat_jalan</field>
+        <field name="report_file">foodtrace.report_surat_jalan</field>
+        <field name="print_report_name">'SJ-%s' % object.name</field>
+        <field name="binding_model_id" ref="stock.model_stock_picking"/>
+    </record>
+
+    <template id="report_lpn_label">
+        <t t-call="web.basic_layout">
+            <t t-foreach="docs" t-as="pack">
+                <div class="page" style="font-family: sans-serif; page-break-after: always;">
+                    <div style="font-size: 13px; color: #555;">LPN · <t t-esc="pack.company_id.name or res_company.name"/></div>
+                    <div style="font-size: 30px; font-weight: bold; letter-spacing: 1px;" t-esc="pack.name"/>
+                    <img t-att-src="'/report/barcode/?barcode_type=Code128&amp;value=%s&amp;width=600&amp;height=120&amp;humanreadable=0' % pack.name"
+                         style="width: 100%; height: 22mm;"/>
+                    <table style="width: 100%; font-size: 14px; margin-top: 6px;">
+                        <tr><td style="width: 34%; color: #555;">Item</td>
+                            <td><b t-esc="pack.wms_product_id.default_code"/><br/><span t-esc="pack.wms_product_id.name"/></td></tr>
+                        <tr><td style="color: #555;">Lot</td><td><b t-esc="pack.wms_lot_id.name"/></td></tr>
+                        <tr><td style="color: #555;">Expiry</td>
+                            <td><b style="font-size: 20px;" t-esc="pack.wms_expiration_date and pack.wms_expiration_date.strftime('%d-%m-%Y')"/></td></tr>
+                        <tr><td style="color: #555;">Qty</td>
+                            <td><b t-esc="'%g' % pack.wms_qty"/> <span t-esc="pack.wms_product_id.uom_id.name"/></td></tr>
+                        <tr><td style="color: #555;">Zona</td><td t-esc="pack.wms_product_id.wms_zone and pack.wms_product_id.wms_zone.upper()"/></tr>
+                        <tr><td style="color: #555;">Lokasi</td><td t-esc="pack.location_id.name"/></tr>
+                        <tr t-if="pack.wms_pallet_no"><td style="color: #555;">No. palet</td><td t-esc="pack.wms_pallet_no"/></tr>
+                        <tr t-if="pack.wms_lot_id.wms_grade or pack.wms_lot_id.wms_brand">
+                            <td style="color: #555;">Grade / brand</td>
+                            <td><t t-esc="pack.wms_lot_id.wms_grade"/> <t t-esc="pack.wms_lot_id.wms_brand"/></td></tr>
+                    </table>
+                </div>
+            </t>
+        </t>
+    </template>
+
+    <template id="report_manifest">
+        <t t-call="web.html_container">
+            <t t-foreach="docs" t-as="job">
+                <t t-call="web.external_layout">
+                    <div class="page">
+                        <h3>Manifest muat <t t-esc="job.name"/></h3>
+                        <div class="row mb-3">
+                            <div class="col-4"><b>Tanggal:</b> <span t-field="job.date"/></div>
+                            <div class="col-4"><b>Kendaraan:</b> <span t-esc="job.vehicle_plate"/></div>
+                            <div class="col-4"><b>Pengemudi:</b> <span t-esc="job.driver"/></div>
+                        </div>
+                        <table class="table table-sm table-bordered">
+                            <thead>
+                                <tr><th>Outbound</th><th>Customer</th><th>Item</th><th>Lot</th><th>Expiry</th>
+                                    <th>LPN</th><th class="text-end">Qty</th><th>Muat</th></tr>
+                            </thead>
+                            <tbody>
+                                <t t-foreach="job.picking_ids" t-as="p">
+                                    <tr t-foreach="p.move_line_ids" t-as="ml">
+                                        <td t-esc="p.name"/>
+                                        <td t-esc="p.partner_id.name"/>
+                                        <td><t t-esc="ml.product_id.default_code"/> <t t-esc="ml.product_id.name"/></td>
+                                        <td t-esc="ml.lot_id.name"/>
+                                        <td t-esc="ml.lot_id.expiration_date and ml.lot_id.expiration_date.strftime('%d-%m-%Y')"/>
+                                        <td t-esc="(ml.result_package_id or ml.package_id).name"/>
+                                        <td class="text-end"><t t-esc="'%g' % ml.quantity"/> <t t-esc="ml.product_uom_id.name"/></td>
+                                        <td t-esc="ml.wms_loaded and '✓' or ''"/>
+                                    </tr>
+                                </t>
+                            </tbody>
+                        </table>
+                        <p><b>Total berat:</b> <t t-esc="'%.2f' % job.total_weight"/> kg ·
+                           <b>Baris dimuat:</b> <t t-esc="job.loaded_count"/>/<t t-esc="job.line_count"/></p>
+                        <div class="row mt-5">
+                            <div class="col-4 text-center">Checker<br/><br/><br/>(.................)</div>
+                            <div class="col-4 text-center">Pengemudi<br/><br/><br/>(.................)</div>
+                            <div class="col-4 text-center">Kepala gudang<br/><br/><br/>(.................)</div>
+                        </div>
+                    </div>
+                </t>
+            </t>
+        </t>
+    </template>
+
+    <template id="report_surat_jalan">
+        <t t-call="web.html_container">
+            <t t-foreach="docs" t-as="p">
+                <t t-call="web.external_layout">
+                    <div class="page">
+                        <div class="row">
+                            <div class="col-8">
+                                <h3>Surat jalan <t t-esc="p.wms_delivery_note or p.name"/></h3>
+                                <div><b>Kepada:</b> <span t-field="p.partner_id"
+                                     t-options="{'widget': 'contact', 'fields': ['name', 'address'], 'no_marker': True}"/></div>
+                                <div><b>Ref. SO:</b> <t t-esc="p.origin"/> · <b>Rute:</b> <t t-esc="p.wms_shipping_group"/></div>
+                                <div><b>Kendaraan:</b> <t t-esc="p.wms_loading_id.vehicle_plate"/> ·
+                                     <b>Pengemudi:</b> <t t-esc="p.wms_loading_id.driver"/></div>
+                            </div>
+                            <div class="col-4 text-end" t-if="p.wms_pod_id">
+                                <img t-att-src="'/report/barcode/?barcode_type=QR&amp;value=%s&amp;width=160&amp;height=160' % p.wms_pod_id.get_url()"
+                                     style="width: 32mm; height: 32mm;"/>
+                                <div style="font-size: 10px;">Scan untuk POD (suhu, qty diterima, foto)</div>
+                            </div>
+                        </div>
+                        <table class="table table-sm table-bordered mt-3">
+                            <thead><tr><th>Item</th><th>Lot</th><th>Expiry</th><th class="text-end">Qty</th><th>Satuan</th></tr></thead>
+                            <tbody>
+                                <tr t-foreach="p.move_line_ids" t-as="ml">
+                                    <td><t t-esc="ml.product_id.default_code"/> <t t-esc="ml.product_id.name"/></td>
+                                    <td t-esc="ml.lot_id.name"/>
+                                    <td t-esc="ml.lot_id.expiration_date and ml.lot_id.expiration_date.strftime('%d-%m-%Y')"/>
+                                    <td class="text-end" t-esc="'%g' % ml.quantity"/>
+                                    <td t-esc="ml.product_uom_id.name"/>
+                                </tr>
+                            </tbody>
+                        </table>
+                        <p>Suhu saat diterima: ........ °C (frozen ≤ -17 °C, chilled ≤ -1 °C)</p>
+                        <div class="row mt-5">
+                            <div class="col-4 text-center">Gudang<br/><br/><br/>(.................)</div>
+                            <div class="col-4 text-center">Pengemudi<br/><br/><br/>(.................)</div>
+                            <div class="col-4 text-center">Penerima<br/><br/><br/>(.................)</div>
+                        </div>
+                    </div>
+                </t>
+            </t>
+        </t>
+    </template>
+</odoo>

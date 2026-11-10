@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_picking_form_wms" model="ir.ui.view">
+        <field name="name">stock.picking.form.wms</field>
+        <field name="model">stock.picking</field>
+        <field name="inherit_id" ref="stock.view_picking_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//header/button[@name='button_validate']" position="before">
+                <button name="action_wms_log_temperature" type="object" string="Catat suhu"
+                        invisible="state in ('done', 'cancel') or picking_type_code == 'internal'"/>
+                <button name="action_wms_tally" type="object" string="Tally karton"
+                        invisible="state in ('done', 'cancel') or picking_type_code != 'incoming'"/>
+            </xpath>
+            <xpath expr="//div[@name='button_box']" position="inside">
+                <button name="action_wms_cartons" type="object" class="oe_stat_button" icon="fa-cubes"
+                        invisible="wms_carton_count == 0">
+                    <field name="wms_carton_count" widget="statinfo" string="Karton"/>
+                </button>
+            </xpath>
+            <xpath expr="//sheet/div[hasclass('oe_title')]" position="before">
+                <div class="alert alert-danger" role="alert" invisible="not wms_temp_alarm">
+                    Ada suhu di atas batas alarm. Barang zona dingin diarahkan ke karantina saat divalidasi.
+                </div>
+                <div class="alert alert-warning" role="alert"
+                     invisible="not wms_needs_temp or wms_temp_logged or state in ('done', 'cancel')">
+                    Barang frozen/chilled: catat suhu produk dan truk sebelum validasi.
+                </div>
+            </xpath>
+            <xpath expr="//notebook" position="inside">
+                <page string="WMS" name="wms">
+                    <group>
+                        <group>
+                            <field name="wms_sync_id"/>
+                            <field name="wms_shipping_group"/>
+                            <field name="wms_priority"/>
+                            <field name="wms_needs_temp" invisible="1"/>
+                            <field name="wms_temp_logged"/>
+                            <field name="wms_temp_alarm"/>
+                        </group>
+                        <group>
+                            <field name="wms_sap_state"/>
+                        </group>
+                    </group>
+                    <field name="wms_temperature_ids">
+                        <list editable="bottom" decoration-danger="is_alarm">
+                            <field name="date"/>
+                            <field name="zone"/>
+                            <field name="source"/>
+                            <field name="temperature"/>
+                            <field name="alarm_temp"/>
+                            <field name="is_alarm"/>
+                            <field name="note"/>
+                        </list>
+                    </field>
+                    <field name="wms_sap_document_ids" readonly="1">
+                        <list>
+                            <field name="name"/>
+                            <field name="doc_type"/>
+                            <field name="sap_doc_num"/>
+                            <field name="state"/>
+                        </list>
+                    </field>
+                </page>
+            </xpath>
+        </field>
+    </record>
+    <record id="view_picking_list_wms" model="ir.ui.view">
+        <field name="name">stock.picking.list.wms</field>
+        <field name="model">stock.picking</field>
+        <field name="inherit_id" ref="stock.vpicktree"/>
+        <field name="arch" type="xml">
+            <field name="origin" position="after">
+                <field name="wms_shipping_group" optional="show"/>
+                <field name="wms_temp_alarm" optional="hide"/>
+            </field>
+        </field>
+    </record>
+    <record id="view_warehouse_form_wms" model="ir.ui.view">
+        <field name="name">stock.warehouse.form.wms</field>
+        <field name="model">stock.warehouse</field>
+        <field name="inherit_id" ref="stock.view_warehouse"/>
+        <field name="arch" type="xml">
+            <field name="code" position="after">
+                <field name="wms_sap_code"/>
+            </field>
+        </field>
+    </record>
+    <record id="action_receipts_wms" model="ir.actions.act_window">
+        <field name="name">Penerimaan</field>
+        <field name="res_model">stock.picking</field>
+        <field name="view_mode">list,form</field>
+        <field name="domain">[('picking_type_code', '=', 'incoming')]</field>
+        <field name="context">{'search_default_available': 1, 'restricted_picking_type_code': 'incoming'}</field>
+    </record>
+    <record id="action_deliveries_wms" model="ir.actions.act_window">
+        <field name="name">Pengiriman</field>
+        <field name="res_model">stock.picking</field>
+        <field name="view_mode">list,form</field>
+        <field name="domain">[('picking_type_code', '=', 'outgoing')]</field>
+        <field name="context">{'search_default_available': 1, 'restricted_picking_type_code': 'outgoing'}</field>
+    </record>
+    <record id="action_internal_wms" model="ir.actions.act_window">
+        <field name="name">Pemindahan internal</field>
+        <field name="res_model">stock.picking</field>
+        <field name="view_mode">list,form</field>
+        <field name="domain">[('picking_type_code', '=', 'internal')]</field>
+    </record>
+</odoo>
