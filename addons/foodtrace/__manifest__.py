@@ -29,11 +29,13 @@
         "views/wms_inventory_views.xml",
         "reports/wms_reports.xml",
         "views/dashboard_views.xml",
+        "views/guide_views.xml",
         "views/menus.xml",
     ],
     "assets": {
         "web.assets_backend": [
             "foodtrace/static/src/dashboard/**/*",
+            "foodtrace/static/src/guide/**/*",
         ],
     },
     "application": True,

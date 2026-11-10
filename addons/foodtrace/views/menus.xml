@@ -41,6 +41,8 @@
     <menuitem id="menu_wms_quarantine" name="Stok Hold" parent="menu_wms_qa" action="action_quarantine_stock" sequence="2"/>
 
     <menuitem id="menu_wms_reports" name="Reports" parent="menu_wms_root" sequence="50"/>
+    <menuitem id="menu_wms_rep_by_loc" name="Stok per Lokasi" parent="menu_wms_reports" action="action_report_by_location" sequence="0"/>
+    <menuitem id="menu_wms_rep_by_item" name="Lokasi per Item" parent="menu_wms_reports" action="action_report_by_item" sequence="0"/>
     <menuitem id="menu_wms_rep_in" name="Material In" parent="menu_wms_reports" action="action_material_in" sequence="1"/>
     <menuitem id="menu_wms_rep_out" name="Material Out" parent="menu_wms_reports" action="action_material_out" sequence="2"/>
     <menuitem id="menu_wms_rep_transfer" name="Transfer Log" parent="menu_wms_reports" action="action_transfer_log" sequence="3"/>
@@ -54,6 +56,7 @@
     <menuitem id="menu_wms_sap_sync" name="Dokumen masuk (POR/SOR)" parent="menu_wms_sap" action="action_sync_document" sequence="1"/>
     <menuitem id="menu_wms_sap_queue" name="Antrean posting (GR/GI)" parent="menu_wms_sap" action="action_sap_document" sequence="2"/>
 
+    <menuitem id="menu_wms_guide" name="Panduan" parent="menu_wms_root" action="action_guide" sequence="95"/>
     <menuitem id="menu_wms_master" name="Master Data" parent="menu_wms_root" sequence="90" groups="group_wms_manager"/>
     <menuitem id="menu_wms_products" name="Item Master" parent="menu_wms_master" action="action_product_wms" sequence="1"/>
     <menuitem id="menu_wms_locations" name="Bin / Rak Master" parent="menu_wms_master" action="action_location_wms" sequence="2"/>

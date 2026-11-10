@@ -14,3 +14,4 @@ from . import wms_sync_document
 from . import wms_outbound
 from . import wms_inventory_check
 from . import wms_butcher
+from . import wms_guide

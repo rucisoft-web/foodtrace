@@ -33,6 +33,9 @@
                     <t t-elif="state.screen === 'hold'">QC hold</t>
                 </div>
                 <i t-if="state.busy" class="fa fa-circle-o-notch fa-spin"/>
+                <button class="o_hht_help" title="Bantuan layar ini" t-on-click="() => this.help()">
+                    <i class="fa fa-question-circle"/>
+                </button>
             </header>
 
             <div t-if="state.msg" class="o_hht_msg" t-att-class="state.ok ? 'o_ok' : 'o_err'" t-on-click="() => (this.state.msg = null)">

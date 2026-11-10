@@ -10,7 +10,7 @@ DOC_TYPES = [
 
 
 class WmsSapDocument(models.Model):
-    """Antrean posting ke SAP B1 (Service Layer). Mode simulasi sampai konektor rasentra_sap_b1 dipasang."""
+    """Antrean posting ke SAP B1 (Service Layer). Mode simulasi sampai konektor Service Layer FoodTrace dipasang."""
 
     _name = "wms.sap.document"
     _description = "Antrean posting SAP B1"

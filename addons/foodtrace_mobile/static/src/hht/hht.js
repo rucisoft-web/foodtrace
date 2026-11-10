@@ -1,6 +1,7 @@
 import { Component, onMounted, onWillStart, useRef, useState } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
+import { openGuideDialog } from "@foodtrace/guide/guide";
 
 const ZONE = { frozen: "Frozen", chilled: "Chilled", dry: "Dry" };
 
@@ -54,6 +55,11 @@ export class WmsHht extends Component {
         } finally {
             this.state.busy = false;
         }
+    }
+
+    /** Tombol (?) di bar judul: keterangan pengisian layar handheld yang sedang dibuka. */
+    help() {
+        openGuideDialog(this.env, { key: `hht.${this.state.screen}` });
     }
 
     feedback(msg, ok = true) {

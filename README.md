@@ -12,6 +12,13 @@ Pilot: PT Sarana Kulina Intisejahtera (distributor, satu gudang GENERAL WAREHOUS
 | `addons/foodtrace_mobile` | Aplikasi handheld (`/wms/hht`): receiving per palet dengan tombol *Simpan palet* dan cetak label LPN, put away beberapa LPN sekaligus, picking job FEFO dengan scan lokasi lalu LPN/lot, staging, checker, loading, inventory check, butcher out, QC hold, suhu ruang, cek stok, cycle count buta. |
 | `addons/foodtrace_demo` | Data demo dari saldo persediaan Sarana Kulina 1 Jan 2025 (615 item, zona usulan), rak FZ/CH/DR berbarcode, lot dan LPN, karton, arus 30 hari, log suhu 14 hari dengan ekskursi, dokumen sinkron POR/SOR (termasuk satu yang gagal), antrean SAP, picking job, loading, POD, inventory check dan butcher. |
 
+## Panduan penggunaan
+
+Menu **FoodTrace → Panduan** berisi panduan lengkap: konsep dasar, lalu setiap layar per kelompok pengguna
+(operator handheld, admin inbound, admin outbound, kepala gudang/QA, admin master data & SAP) dengan cara
+pengisian dan keterangan setiap field. Tombol **?** di pojok kanan atas (dan di bar judul handheld) membuka
+keterangan layar yang sedang dibuka. Isi panduan ada di `addons/foodtrace/models/wms_guide_data.py`.
+
 ## Menjalankan
 
 ```sh
