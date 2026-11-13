@@ -1,7 +1,7 @@
 {
     "name": "FoodTrace",
     "summary": "Gudang cold chain Indoguna Group: zona frozen/chilled/dry, log suhu, karton berat aktual, FEFO, karantina, antrean SAP B1, dashboard",
-    "version": "18.0.1.0.0",
+    "version": "18.0.1.1.0",
     "category": "Inventory/Inventory",
     "license": "LGPL-3",
     "author": "Indoguna Group",
