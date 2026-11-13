@@ -6,7 +6,7 @@
     "license": "LGPL-3",
     "author": "Indoguna Group",
     "depends": ["foodtrace"],
-    "data": [],
+    "data": ["data/ir_cron.xml"],
     "post_init_hook": "post_init_hook",
     "installable": True,
 }

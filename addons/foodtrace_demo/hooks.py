@@ -42,8 +42,26 @@ PLATES = ["B 9123 KXT", "B 9561 TRS", "B 9802 UAK", "B 9017 NDP", "B 9442 SKI"]
 DRIVERS = ["Agus", "Bambang", "Dedi", "Hendra", "Rizal", "Slamet"]
 
 
+# Dokumen riwayat per giliran cron saat demo dipasang dari menu Apps (muat dalam batas waktu worker).
+BATCH = 80
+PARAM = "foodtrace_demo.progress"
+
+
 def post_init_hook(env):
-    Demo(env).run()
+    """Dengan --stop-after-init: semua data dibuat langsung. Selain itu (menu Apps, worker dibatasi
+    limit_time_cpu/real): master, stok awal dan dokumen dibuat sekarang, riwayat PO/SO diputar ulang
+    bertahap oleh cron "FoodTrace demo: lanjutkan data" lalu cron mematikan dirinya sendiri."""
+    from odoo.tools import config
+
+    demo = Demo(env)
+    if config.get("stop_after_init"):
+        demo.run()
+    else:
+        demo.run_deferred()
+
+
+def _cron_continue(env):
+    Demo.resume(env).continue_batch()
 
 
 def _rows(name):
@@ -55,10 +73,10 @@ def _sap_date(day):
 
 
 class Demo:
-    def __init__(self, env):
+    def __init__(self, env, shift_days=None):
         self.rnd = random.Random(95)
         self.now = datetime.now().replace(microsecond=0)
-        self.shift = self.now.date() - DATA_DAY
+        self.shift = timedelta(days=shift_days) if shift_days is not None else self.now.date() - DATA_DAY
         self.base_env = env
         self.env = env
         self.master = _rows("master_item.csv")
@@ -73,17 +91,86 @@ class Demo:
     # ------------------------------------------------------------------ main
     def run(self):
         _logger.info("FoodTrace demo: membuat data Sarana Kulina dari tarikan SAP")
+        self._setup()
+        events = self._events()
+        self._replay(events, 0, len(events))
+        self._finish()
+
+    def _setup(self):
         self._company()
         self._settings()
         self._locations()
         self._partners()
         self._products()
         self._opening_stock()
-        self._history()
+
+    def _finish(self):
+        self._after_history()
         self._open_work()
         self._sap_queue()
         self._inventory_and_butcher()
         _logger.info("FoodTrace demo selesai")
+
+    # ------------------------------------------------- bertahap lewat cron
+    def run_deferred(self):
+        self._setup()
+        self.env["ir.config_parameter"].sudo().set_param(
+            PARAM, f"0|{self.shift.days}|{self.company.id}")
+        cron = self.env.ref("foodtrace_demo.ir_cron_demo_continue").sudo()
+        cron.write({"active": True, "nextcall": datetime.now()})
+        _logger.info("FoodTrace demo: riwayat %s dokumen dilanjutkan oleh cron", len(self._events()))
+
+    @classmethod
+    def resume(cls, env):
+        value = env["ir.config_parameter"].sudo().get_param(PARAM)
+        if not value:
+            return None
+        done, shift, company_id = (int(x) for x in value.split("|"))
+        demo = cls(env, shift_days=shift)
+        demo.done = done
+        company = env["res.company"].browse(company_id)
+        demo.company = company
+        demo.env = env(context=dict(env.context, allowed_company_ids=[company.id], tz="Asia/Jakarta",
+                                    tracking_disable=True, mail_create_nolog=True, mail_notrack=True))
+        demo.rnd = random.Random(95 + done)
+        demo._load_context()
+        return demo
+
+    def _load_context(self):
+        env = self.env
+        Loc = env["stock.location"]
+        self.wh = env["stock.warehouse"].search([("company_id", "=", self.company.id)], limit=1)
+        stock = self.wh.lot_stock_id
+        self.rooms, self.used_bins, self.pck = {}, {}, {}
+        for zone in ZONE_CODE:
+            room = Loc.search([("location_id", "=", stock.id), ("wms_area", "=", "room"), ("wms_zone", "=", zone)],
+                              limit=1)
+            self.rooms[zone] = room
+            self.used_bins[zone] = Loc.search([("location_id.location_id", "=", room.id), ("wms_area", "=", "blk"),
+                                               ("location_id.wms_area", "=", "blk")])
+            self.pck[zone] = Loc.search([("location_id", "=", room.id), ("wms_area", "=", "pck")], limit=1)
+        self._bin_cursor = defaultdict(lambda: self.rnd.randint(0, 200))
+        self.docks = Loc.search([("location_id", "=", stock.id), ("wms_area", "=", "rcv")])
+        self.staging = Loc.search([("location_id", "=", stock.id), ("wms_area", "=", "out")], limit=1)
+        products = env["product.product"].search([("default_code", "!=", False),
+                                                  ("company_id", "in", [self.company.id, False])])
+        self.rows = {row["item_code"]: row for row in self.master}
+        self.products = {p.default_code: p for p in products if p.default_code in self.rows}
+        partners = env["res.partner"].search([("ref", "!=", False), ("parent_id", "=", False)])
+        self.customers = {p.ref: p for p in partners if p.wms_is_destination}
+        self.suppliers = {p.ref: p for p in partners if p.wms_is_source}
+
+    def continue_batch(self):
+        events = self._events()
+        end = min(self.done + BATCH, len(events))
+        self._replay(events, self.done, end)
+        Param = self.env["ir.config_parameter"].sudo()
+        if end < len(events):
+            Param.set_param(PARAM, f"{end}|{self.shift.days}|{self.company.id}")
+            return
+        self._finish()
+        # Cron tidak bisa menonaktifkan dirinya sendiri selagi berjalan; tanpa progress ia tidak berbuat apa-apa.
+        Param.set_param(PARAM, False)
 
     # ---------------------------------------------------------------- company
     def _company(self):
@@ -498,24 +585,31 @@ class Demo:
         self._backdate(picking, when)
         return picking
 
-    def _history(self):
+    def _events(self):
         """PO Closed diterima dan SO Closed 7 hari terakhir dikirim, urut tanggal (terima dulu, lalu kirim)."""
         events = [(lines[0]["date"], 0, num, lines) for num, lines in self._docs(self._closed_po()).items()]
         events += [(lines[0]["date"], 1, num, lines) for num, lines in self._docs(self._closed_so()).items()]
-        self.history_out = self.env["stock.picking"]
-        for i, (_d, kind, _num, lines) in enumerate(sorted(events)):
+        return sorted(events)
+
+    def _replay(self, events, start, end):
+        for i in range(start, end):
+            _d, kind, _num, lines = events[i]
             if kind == 0:
                 self._receive(lines)
             else:
-                self.history_out |= self._ship(lines)
+                self._ship(lines)
             if i % 200 == 0:
                 _logger.info("FoodTrace demo: riwayat %s/%s dokumen", i, len(events))
+
+    def _after_history(self):
         self._reconcile_onhand()
         self._apply_receive_life()
         self._apply_customer_shelf_life()
         self._min_stock()
         # Rekap POD untuk 6 pengiriman terakhir lewat satu loading job yang sudah ditutup.
-        last = self.history_out.sorted("date_done")[-6:]
+        last = self.env["stock.picking"].search([
+            ("company_id", "=", self.company.id), ("picking_type_code", "=", "outgoing"), ("state", "=", "done")],
+            order="date_done desc", limit=6).sorted("date_done")
         job = self.env["wms.loading"].create({
             "vehicle_plate": PLATES[0], "driver": DRIVERS[0], "date": (self.now - timedelta(days=1)).date(),
             "state": "close"})
