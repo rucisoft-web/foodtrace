@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Struktur menu mengikuti URS Largo (Inbound, Inventory Management, Outbound, Reports, Master Data),
+         ditambah Suhu & QA dan Integrasi SAP B1. -->
+    <menuitem id="menu_wms_root" name="FoodTrace" web_icon="foodtrace,static/description/icon.png"
+              sequence="45" groups="group_wms_operator"/>
+    <menuitem id="menu_wms_dashboard" name="Dashboard" parent="menu_wms_root" action="action_dashboard" sequence="1"/>
+
+    <menuitem id="menu_wms_inbound" name="Inbound" parent="menu_wms_root" sequence="10"/>
+    <menuitem id="menu_wms_inbound_doc" name="Inbound Document" parent="menu_wms_inbound" action="action_inbound_document" sequence="0"/>
+    <menuitem id="menu_wms_receipts" name="Receiving" parent="menu_wms_inbound" action="action_receipts_wms" sequence="1"/>
+    <menuitem id="menu_wms_cartons" name="Tally karton (Serial Number)" parent="menu_wms_inbound" action="action_carton" sequence="2"/>
+    <menuitem id="menu_wms_putaway" name="Put Away" parent="menu_wms_inbound" action="action_internal_wms" sequence="3"/>
+    <menuitem id="menu_wms_qc" name="QC Hold / Release" parent="menu_wms_inbound" action="action_qc_hold" sequence="4"/>
+
+    <menuitem id="menu_wms_inventory" name="Inventory Management" parent="menu_wms_root" sequence="20"/>
+    <menuitem id="menu_wms_bin_transfer" name="Bin Transfer" parent="menu_wms_inventory" action="action_internal_wms" sequence="1"/>
+    <menuitem id="menu_wms_wh_transfer" name="Warehouse Transfer" parent="menu_wms_inventory" action="action_warehouse_transfer" sequence="2"/>
+    <menuitem id="menu_wms_cycle_count" name="Cycle Count / Stock Take" parent="menu_wms_inventory" action="action_cycle_count" sequence="3"/>
+    <menuitem id="menu_wms_inv_check" name="Inventory Check" parent="menu_wms_inventory" action="action_inventory_check" sequence="4"/>
+    <menuitem id="menu_wms_inv_check_appr" name="Inventory Check Approval" parent="menu_wms_inventory" action="action_inventory_check_approval" sequence="5" groups="group_wms_manager"/>
+    <menuitem id="menu_wms_lpn_reprint" name="Need to Print (LPN)" parent="menu_wms_inventory" action="action_lpn_reprint" sequence="6"/>
+    <menuitem id="menu_wms_active" name="Active Inventory" parent="menu_wms_inventory" sequence="10"/>
+    <menuitem id="menu_wms_stock_status" name="Stock Status" parent="menu_wms_active" action="action_stock_status" sequence="1"/>
+    <menuitem id="menu_wms_quants" name="Posisi stok per bin" parent="menu_wms_active" action="action_stock_wms" sequence="2"/>
+    <menuitem id="menu_wms_lpn" name="LPN List" parent="menu_wms_active" action="action_lpn_list" sequence="3"/>
+    <menuitem id="menu_wms_stock_card" name="Stock Card" parent="menu_wms_active" action="action_stock_card" sequence="4"/>
+
+    <menuitem id="menu_wms_outbound" name="Outbound" parent="menu_wms_root" sequence="30"/>
+    <menuitem id="menu_wms_deliveries" name="Outbound Document" parent="menu_wms_outbound" action="action_deliveries_wms" sequence="1"/>
+    <menuitem id="menu_wms_picking_job" name="Picking Job" parent="menu_wms_outbound" action="action_picking_job" sequence="2"/>
+    <menuitem id="menu_wms_checker" name="Checker" parent="menu_wms_outbound" action="action_checker" sequence="3"/>
+    <menuitem id="menu_wms_loading" name="Loading Job" parent="menu_wms_outbound" action="action_loading" sequence="4"/>
+    <menuitem id="menu_wms_pod" name="POD" parent="menu_wms_outbound" action="action_pod" sequence="5"/>
+
+    <menuitem id="menu_wms_butcher" name="Butcher" parent="menu_wms_root" sequence="35"/>
+    <menuitem id="menu_wms_butcher_out" name="Butcher Out (bahan keluar)" parent="menu_wms_butcher" action="action_butcher_out" sequence="1"/>
+    <menuitem id="menu_wms_butcher_in" name="Butcher In / Repack (hasil)" parent="menu_wms_butcher" action="action_butcher_in" sequence="2"/>
+
+    <menuitem id="menu_wms_qa" name="QA" parent="menu_wms_root" sequence="40"/>
+    <menuitem id="menu_wms_quarantine" name="Stok Hold" parent="menu_wms_qa" action="action_quarantine_stock" sequence="2"/>
+
+    <menuitem id="menu_wms_reports" name="Reports" parent="menu_wms_root" sequence="50"/>
+    <menuitem id="menu_wms_rep_by_loc" name="Stok per Lokasi" parent="menu_wms_reports" action="action_report_by_location" sequence="0"/>
+    <menuitem id="menu_wms_rep_by_item" name="Lokasi per Item" parent="menu_wms_reports" action="action_report_by_item" sequence="0"/>
+    <menuitem id="menu_wms_rep_in" name="Material In" parent="menu_wms_reports" action="action_material_in" sequence="1"/>
+    <menuitem id="menu_wms_rep_out" name="Material Out" parent="menu_wms_reports" action="action_material_out" sequence="2"/>
+    <menuitem id="menu_wms_rep_transfer" name="Transfer Log" parent="menu_wms_reports" action="action_transfer_log" sequence="3"/>
+    <menuitem id="menu_wms_rep_cc" name="Cycle Count / Adjustment" parent="menu_wms_reports" action="action_cycle_count_report" sequence="4"/>
+    <menuitem id="menu_wms_rep_low" name="Item Low" parent="menu_wms_reports" action="action_item_low" sequence="5"/>
+    <menuitem id="menu_wms_rep_wh" name="Warehouse Transfer" parent="menu_wms_reports" action="action_warehouse_transfer" sequence="6"/>
+    <menuitem id="menu_wms_rep_exp" name="Expired Report" parent="menu_wms_reports" action="action_expired_report" sequence="7"/>
+    <menuitem id="menu_wms_rep_ic" name="Inventory Check Discrepancy" parent="menu_wms_reports" action="action_inventory_check_report" sequence="8"/>
+
+    <menuitem id="menu_wms_sap" name="Integrasi SAP B1" parent="menu_wms_root" sequence="60"/>
+    <menuitem id="menu_wms_sap_sync" name="Dokumen masuk (POR/SOR)" parent="menu_wms_sap" action="action_sync_document" sequence="1"/>
+    <menuitem id="menu_wms_sap_queue" name="Antrean posting (GR/GI)" parent="menu_wms_sap" action="action_sap_document" sequence="2"/>
+
+    <menuitem id="menu_wms_guide" name="Panduan" parent="menu_wms_root" action="action_guide" sequence="95"/>
+    <menuitem id="menu_wms_master" name="Master Data" parent="menu_wms_root" sequence="90" groups="group_wms_manager"/>
+    <menuitem id="menu_wms_products" name="Item Master" parent="menu_wms_master" action="action_product_wms" sequence="1"/>
+    <menuitem id="menu_wms_locations" name="Bin / Rak Master" parent="menu_wms_master" action="action_location_wms" sequence="2"/>
+    <menuitem id="menu_wms_source" name="Source Master" parent="menu_wms_master" action="action_source_master" sequence="3"/>
+    <menuitem id="menu_wms_destination" name="Destination Master" parent="menu_wms_master" action="action_destination_master" sequence="4"/>
+    <menuitem id="menu_wms_templates" name="Format Serial Number / barcode karton" parent="menu_wms_master" action="action_barcode_template" sequence="5"/>
+    <menuitem id="menu_wms_zones" name="Standar zona" parent="menu_wms_master" action="action_zone_standard" sequence="6"/>
+</odoo>

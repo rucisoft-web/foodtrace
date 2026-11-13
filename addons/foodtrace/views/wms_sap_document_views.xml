@@ -1,0 +1,146 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_sap_document_list" model="ir.ui.view">
+        <field name="name">wms.sap.document.list</field>
+        <field name="model">wms.sap.document</field>
+        <field name="arch" type="xml">
+            <list decoration-danger="state == 'failed'" decoration-info="state == 'queued'">
+                <header>
+                    <button name="action_post" type="object" string="Kirim ke SAP"/>
+                </header>
+                <field name="create_date" string="Dibuat"/>
+                <field name="name"/>
+                <field name="picking_id"/>
+                <field name="doc_type"/>
+                <field name="sap_company_db" optional="show"/>
+                <field name="total_qty" optional="show"/>
+                <field name="total_weight" optional="hide"/>
+                <field name="attempts" optional="hide"/>
+                <field name="sap_doc_num"/>
+                <field name="state" widget="badge" decoration-success="state == 'posted'"
+                       decoration-danger="state == 'failed'" decoration-info="state == 'queued'"/>
+            </list>
+        </field>
+    </record>
+    <record id="view_sap_document_form" model="ir.ui.view">
+        <field name="name">wms.sap.document.form</field>
+        <field name="model">wms.sap.document</field>
+        <field name="arch" type="xml">
+            <form>
+                <header>
+                    <button name="action_post" type="object" string="Kirim ulang" class="btn-primary"
+                            invisible="state == 'posted'"/>
+                    <field name="state" widget="statusbar"/>
+                </header>
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="name"/>
+                            <field name="picking_id"/>
+                            <field name="doc_type"/>
+                            <field name="sap_company_db"/>
+                        </group>
+                        <group>
+                            <field name="sap_doc_num"/>
+                            <field name="posted_at"/>
+                            <field name="attempts"/>
+                            <field name="total_qty"/>
+                            <field name="total_weight"/>
+                        </group>
+                    </group>
+                    <field name="error" invisible="not error"/>
+                </sheet>
+            </form>
+        </field>
+    </record>
+    <record id="view_sap_document_search" model="ir.ui.view">
+        <field name="name">wms.sap.document.search</field>
+        <field name="model">wms.sap.document</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="name"/>
+                <field name="picking_id"/>
+                <filter name="pending" string="Belum terkirim" domain="[('state', '!=', 'posted')]"/>
+                <filter name="failed" string="Gagal" domain="[('state', '=', 'failed')]"/>
+                <group expand="0" string="Kelompok">
+                    <filter name="g_type" string="Jenis" context="{'group_by': 'doc_type'}"/>
+                    <filter name="g_state" string="Status" context="{'group_by': 'state'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+    <record id="action_sap_document" model="ir.actions.act_window">
+        <field name="name">Antrean posting SAP</field>
+        <field name="res_model">wms.sap.document</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+    <record id="view_sync_document_list" model="ir.ui.view">
+        <field name="name">wms.sync.document.list</field>
+        <field name="model">wms.sync.document</field>
+        <field name="arch" type="xml">
+            <list decoration-danger="state == 'error'" decoration-muted="state == 'done'">
+                <header>
+                    <button name="action_process" type="object" string="Proses ulang"/>
+                </header>
+                <field name="create_date" string="Diterima"/>
+                <field name="name"/>
+                <field name="direction"/>
+                <field name="doc_type"/>
+                <field name="partner_code"/>
+                <field name="partner_name" optional="show"/>
+                <field name="shipping_group" optional="show"/>
+                <field name="delivery_date"/>
+                <field name="line_count"/>
+                <field name="picking_id"/>
+                <field name="state" widget="badge" decoration-success="state == 'done'" decoration-danger="state == 'error'"/>
+            </list>
+        </field>
+    </record>
+    <record id="view_sync_document_form" model="ir.ui.view">
+        <field name="name">wms.sync.document.form</field>
+        <field name="model">wms.sync.document</field>
+        <field name="arch" type="xml">
+            <form>
+                <header>
+                    <button name="action_process" type="object" string="Proses ulang" class="btn-primary"
+                            invisible="state == 'done'"/>
+                    <button name="action_open_picking" type="object" string="Buka picking" invisible="not picking_id"/>
+                    <field name="state" widget="statusbar"/>
+                </header>
+                <sheet>
+                    <div class="alert alert-danger" role="alert" invisible="not error"><field name="error"/></div>
+                    <group>
+                        <group>
+                            <field name="name"/>
+                            <field name="direction"/>
+                            <field name="doc_type"/>
+                            <field name="obj_type"/>
+                            <field name="doc_entry"/>
+                            <field name="web_trans_no"/>
+                            <field name="vendor_ref"/>
+                            <field name="container_no"/>
+                        </group>
+                        <group>
+                            <field name="partner_code"/>
+                            <field name="partner_name"/>
+                            <field name="warehouse_code"/>
+                            <field name="owner_code"/>
+                            <field name="shipping_group"/>
+                            <field name="doc_date"/>
+                            <field name="delivery_date"/>
+                            <field name="priority"/>
+                            <field name="picking_id"/>
+                        </group>
+                    </group>
+                    <field name="payload" widget="ace" options="{'mode': 'javascript'}" readonly="1"/>
+                </sheet>
+            </form>
+        </field>
+    </record>
+    <record id="action_sync_document" model="ir.actions.act_window">
+        <field name="name">Dokumen sinkron SAP</field>
+        <field name="res_model">wms.sync.document</field>
+        <field name="view_mode">list,form</field>
+    </record>
+</odoo>

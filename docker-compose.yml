@@ -1,0 +1,36 @@
+# Lingkungan pengembangan: PostgreSQL 16 + Odoo 18 Community dengan modul FoodTrace.
+#   docker compose up            → http://localhost:8069 (buat database, lalu pasang FoodTrace)
+# Data demo Sarana Kulina: pasang modul "FoodTrace - Data Demo Sarana Kulina" di database baru.
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: odoo
+      POSTGRES_PASSWORD: odoo
+      POSTGRES_DB: postgres
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U odoo -d postgres"]
+      interval: 5s
+      retries: 10
+
+  odoo:
+    image: odoo:18.0
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      HOST: db
+      USER: odoo
+      PASSWORD: odoo
+    command: ["odoo", "--addons-path=/usr/lib/python3/dist-packages/odoo/addons,/mnt/foodtrace/addons"]
+    ports:
+      - "8069:8069"
+    volumes:
+      - ./addons:/mnt/foodtrace/addons
+      - odoo-data:/var/lib/odoo
+
+volumes:
+  pgdata:
+  odoo-data:

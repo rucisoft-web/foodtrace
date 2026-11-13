@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="action_guide" model="ir.actions.client">
+        <field name="name">Panduan FoodTrace</field>
+        <field name="tag">foodtrace.guide</field>
+    </record>
+</odoo>

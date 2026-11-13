@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_zone_standard_list" model="ir.ui.view">
+        <field name="name">wms.zone.standard.list</field>
+        <field name="model">wms.zone.standard</field>
+        <field name="arch" type="xml">
+            <list editable="bottom">
+                <field name="sequence" widget="handle"/>
+                <field name="name"/>
+                <field name="zone"/>
+                <field name="code"/>
+                <field name="shelf_life_days"/>
+                <field name="color" widget="color"/>
+            </list>
+        </field>
+    </record>
+    <record id="action_zone_standard" model="ir.actions.act_window">
+        <field name="name">Standar zona</field>
+        <field name="res_model">wms.zone.standard</field>
+        <field name="view_mode">list</field>
+    </record>
+</odoo>

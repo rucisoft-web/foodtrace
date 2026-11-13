@@ -1,0 +1,144 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_picking_form_wms" model="ir.ui.view">
+        <field name="name">stock.picking.form.wms</field>
+        <field name="model">stock.picking</field>
+        <field name="inherit_id" ref="stock.view_picking_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//header/button[@name='button_validate']" position="before">
+                <button name="action_wms_tally" type="object" string="Tally karton"
+                        invisible="state in ('done', 'cancel') or picking_type_code != 'incoming'"/>
+            </xpath>
+            <xpath expr="//div[@name='button_box']" position="inside">
+                <button name="action_wms_cartons" type="object" class="oe_stat_button" icon="fa-cubes"
+                        invisible="wms_carton_count == 0">
+                    <field name="wms_carton_count" widget="statinfo" string="Karton"/>
+                </button>
+            </xpath>
+            <field name="origin" position="after">
+                <field name="wms_dock_id" invisible="picking_type_code != 'incoming'"
+                       options="{'no_create': True}" placeholder="mis. DOCK_01"/>
+                <field name="wms_container_no" invisible="picking_type_code != 'incoming'"/>
+                <field name="wms_vendor_ref" invisible="picking_type_code != 'incoming'"/>
+            </field>
+            <xpath expr="//notebook" position="inside">
+                <page string="WMS" name="wms">
+                    <group>
+                        <group>
+                            <field name="wms_sync_id"/>
+                            <field name="wms_shipping_group"/>
+                            <field name="wms_priority"/>
+                        </group>
+                        <group>
+                            <field name="wms_sap_state"/>
+                        </group>
+                    </group>
+                    <field name="wms_sap_document_ids" readonly="1">
+                        <list>
+                            <field name="name"/>
+                            <field name="doc_type"/>
+                            <field name="sap_doc_num"/>
+                            <field name="state"/>
+                        </list>
+                    </field>
+                </page>
+            </xpath>
+        </field>
+    </record>
+    <record id="view_picking_list_wms" model="ir.ui.view">
+        <field name="name">stock.picking.list.wms</field>
+        <field name="model">stock.picking</field>
+        <field name="inherit_id" ref="stock.vpicktree"/>
+        <field name="arch" type="xml">
+            <field name="origin" position="after">
+                <field name="wms_shipping_group" optional="show"/>
+            </field>
+        </field>
+    </record>
+    <record id="view_warehouse_form_wms" model="ir.ui.view">
+        <field name="name">stock.warehouse.form.wms</field>
+        <field name="model">stock.warehouse</field>
+        <field name="inherit_id" ref="stock.view_warehouse"/>
+        <field name="arch" type="xml">
+            <field name="code" position="after">
+                <field name="wms_sap_code"/>
+            </field>
+        </field>
+    </record>
+    <!-- Inbound Document: dokumen sumber dari SAP (POR, mis. 95-SKI-POR-2611515786) sebagai pintu masuk receiving. -->
+    <record id="view_inbound_document_list" model="ir.ui.view">
+        <field name="name">stock.picking.list.inbound.document</field>
+        <field name="model">stock.picking</field>
+        <field name="priority">90</field>
+        <field name="arch" type="xml">
+            <list decoration-muted="state in ('done', 'cancel')"
+                  default_order="scheduled_date desc">
+                <field name="origin" string="Source document SAP"/>
+                <field name="name" string="No. receiving"/>
+                <field name="partner_id" string="Source / pemasok"/>
+                <field name="wms_inbound_type" optional="show"/>
+                <field name="wms_vendor_ref" optional="show"/>
+                <field name="wms_container_no" optional="show"/>
+                <field name="wms_dock_id" optional="show"/>
+                <field name="scheduled_date" string="Tanggal datang"/>
+                <field name="wms_line_count"/>
+                <field name="wms_sap_state" optional="show" widget="badge"/>
+                <field name="state" widget="badge" decoration-success="state == 'done'"
+                       decoration-info="state == 'assigned'" decoration-warning="state in ('confirmed', 'waiting')"/>
+            </list>
+        </field>
+    </record>
+    <record id="view_inbound_document_search" model="ir.ui.view">
+        <field name="name">stock.picking.search.inbound.document</field>
+        <field name="model">stock.picking</field>
+        <field name="priority">90</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="origin" string="Source document SAP"/>
+                <field name="name"/>
+                <field name="partner_id"/>
+                <field name="wms_vendor_ref"/>
+                <field name="wms_container_no"/>
+                <filter name="open" string="Belum diterima" domain="[('state', 'not in', ('done', 'cancel'))]"/>
+                <filter name="done" string="Sudah diterima" domain="[('state', '=', 'done')]"/>
+                <separator/>
+                <filter name="today" string="Datang hari ini"
+                        domain="[('scheduled_date', '&gt;=', context_today().strftime('%Y-%m-%d 00:00:00')), ('scheduled_date', '&lt;=', context_today().strftime('%Y-%m-%d 23:59:59'))]"/>
+                <group expand="0" string="Kelompok">
+                    <filter name="g_partner" string="Pemasok" context="{'group_by': 'partner_id'}"/>
+                    <filter name="g_type" string="Jenis inbound" context="{'group_by': 'wms_inbound_type'}"/>
+                    <filter name="g_state" string="Status" context="{'group_by': 'state'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+    <record id="action_inbound_document" model="ir.actions.act_window">
+        <field name="name">Inbound Document</field>
+        <field name="res_model">stock.picking</field>
+        <field name="view_mode">list,form</field>
+        <field name="domain">[('picking_type_code', '=', 'incoming')]</field>
+        <field name="context">{'search_default_open': 1, 'restricted_picking_type_code': 'incoming', 'foodtrace_guide': 'inbound_document'}</field>
+        <field name="search_view_id" ref="view_inbound_document_search"/>
+        <field name="view_ids" eval="[(5, 0, 0), (0, 0, {'view_mode': 'list', 'view_id': ref('view_inbound_document_list')})]"/>
+    </record>
+    <record id="action_receipts_wms" model="ir.actions.act_window">
+        <field name="name">Penerimaan</field>
+        <field name="res_model">stock.picking</field>
+        <field name="view_mode">list,form</field>
+        <field name="domain">[('picking_type_code', '=', 'incoming')]</field>
+        <field name="context">{'search_default_available': 1, 'restricted_picking_type_code': 'incoming'}</field>
+    </record>
+    <record id="action_deliveries_wms" model="ir.actions.act_window">
+        <field name="name">Pengiriman</field>
+        <field name="res_model">stock.picking</field>
+        <field name="view_mode">list,form</field>
+        <field name="domain">[('picking_type_code', '=', 'outgoing')]</field>
+        <field name="context">{'search_default_available': 1, 'restricted_picking_type_code': 'outgoing'}</field>
+    </record>
+    <record id="action_internal_wms" model="ir.actions.act_window">
+        <field name="name">Pemindahan internal</field>
+        <field name="res_model">stock.picking</field>
+        <field name="view_mode">list,form</field>
+        <field name="domain">[('picking_type_code', '=', 'internal')]</field>
+    </record>
+</odoo>

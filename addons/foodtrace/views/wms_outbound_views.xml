@@ -1,0 +1,225 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Outbound document: tahap Largo (picking → staging → checker → loading → GI → POD) -->
+    <record id="view_picking_form_wms_outbound" model="ir.ui.view">
+        <field name="name">stock.picking.form.wms.outbound</field>
+        <field name="model">stock.picking</field>
+        <field name="inherit_id" ref="foodtrace.view_picking_form_wms"/>
+        <field name="arch" type="xml">
+            <xpath expr="//sheet/div[hasclass('oe_title')]" position="before">
+                <field name="wms_stage" widget="statusbar" invisible="picking_type_code != 'outgoing'"
+                       statusbar_visible="open,picking,staged,checked,loading,shipped,delivered"/>
+            </xpath>
+            <field name="wms_sap_state" position="after">
+                <field name="wms_inbound_type" invisible="picking_type_code != 'incoming'"/>
+                <field name="wms_outbound_type" invisible="picking_type_code != 'outgoing'"/>
+                <field name="wms_vehicle_plate"/>
+                <field name="wms_driver"/>
+                <field name="wms_delivery_note"/>
+                <field name="wms_staging_location_id" invisible="picking_type_code != 'outgoing'"/>
+                <field name="wms_loading_id" invisible="picking_type_code != 'outgoing'"/>
+                <field name="wms_pod_id" invisible="picking_type_code != 'outgoing'"/>
+            </field>
+        </field>
+    </record>
+    <record id="view_picking_list_wms_outbound" model="ir.ui.view">
+        <field name="name">stock.picking.list.wms.outbound</field>
+        <field name="model">stock.picking</field>
+        <field name="inherit_id" ref="foodtrace.view_picking_list_wms"/>
+        <field name="arch" type="xml">
+            <field name="wms_shipping_group" position="after">
+                <field name="wms_priority" optional="show"/>
+                <field name="wms_stage" optional="show" widget="badge"
+                       decoration-info="wms_stage in ('picking', 'staged')"
+                       decoration-warning="wms_stage in ('checked', 'loading')"
+                       decoration-success="wms_stage in ('shipped', 'delivered')"/>
+            </field>
+        </field>
+    </record>
+    <record id="view_picking_search_wms" model="ir.ui.view">
+        <field name="name">stock.picking.search.wms</field>
+        <field name="model">stock.picking</field>
+        <field name="inherit_id" ref="stock.view_picking_internal_search"/>
+        <field name="arch" type="xml">
+            <xpath expr="//filter[@name='available']" position="after">
+                <separator/>
+                <filter name="wms_stage_staged" string="Di staging" domain="[('wms_stage', '=', 'staged')]"/>
+                <filter name="wms_stage_checked" string="Sudah dicek (siap muat)" domain="[('wms_stage', '=', 'checked')]"/>
+                <filter name="wms_stage_shipped" string="Dalam perjalanan" domain="[('wms_stage', '=', 'shipped')]"/>
+            </xpath>
+            <xpath expr="//group" position="inside">
+                <filter name="group_wms_stage" string="Tahap outbound" context="{'group_by': 'wms_stage'}"/>
+                <filter name="group_shipping_group" string="Shipping group" context="{'group_by': 'wms_shipping_group'}"/>
+            </xpath>
+        </field>
+    </record>
+    <record id="action_server_create_picking_job" model="ir.actions.server">
+        <field name="name">Buat Picking Job</field>
+        <field name="model_id" ref="stock.model_stock_picking"/>
+        <field name="binding_model_id" ref="stock.model_stock_picking"/>
+        <field name="binding_view_types">list</field>
+        <field name="state">code</field>
+        <field name="code">action = model.with_context(active_ids=env.context.get('active_ids')).action_wms_create_picking_job()</field>
+    </record>
+
+    <!-- Picking Job = stock.picking.batch -->
+    <record id="view_batch_form_wms" model="ir.ui.view">
+        <field name="name">stock.picking.batch.form.wms</field>
+        <field name="model">stock.picking.batch</field>
+        <field name="inherit_id" ref="stock_picking_batch.stock_picking_batch_form"/>
+        <field name="arch" type="xml">
+            <field name="scheduled_date" position="after">
+                <field name="wms_use_tote"/>
+                <field name="wms_driver"/>
+                <field name="wms_transporter"/>
+                <field name="wms_ready_pct" widget="progressbar"/>
+                <field name="wms_total_weight"/>
+            </field>
+        </field>
+    </record>
+    <record id="action_picking_job" model="ir.actions.act_window">
+        <field name="name">Picking Job</field>
+        <field name="res_model">stock.picking.batch</field>
+        <field name="view_mode">list,form</field>
+        <field name="context">{'search_default_in_progress': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">Belum ada picking job</p>
+            <p>Centang outbound document di menu Outbound Document, lalu Aksi → Buat Picking Job.</p>
+        </field>
+    </record>
+    <record id="action_checker" model="ir.actions.act_window">
+        <field name="name">Checker (outbound staging)</field>
+        <field name="res_model">stock.picking</field>
+        <field name="view_mode">list,form</field>
+        <field name="domain">[('picking_type_code', '=', 'outgoing'), ('wms_stage', 'in', ('picking', 'staged'))]</field>
+    </record>
+
+    <!-- Loading job -->
+    <record id="view_loading_list" model="ir.ui.view">
+        <field name="name">wms.loading.list</field>
+        <field name="model">wms.loading</field>
+        <field name="arch" type="xml">
+            <list decoration-muted="state == 'cancel'" decoration-success="state == 'close'">
+                <field name="name"/>
+                <field name="date"/>
+                <field name="vehicle_plate"/>
+                <field name="driver"/>
+                <field name="line_count"/>
+                <field name="loaded_count"/>
+                <field name="total_weight" sum="Total"/>
+                <field name="state" widget="badge"/>
+            </list>
+        </field>
+    </record>
+    <record id="view_loading_form" model="ir.ui.view">
+        <field name="name">wms.loading.form</field>
+        <field name="model">wms.loading</field>
+        <field name="arch" type="xml">
+            <form>
+                <header>
+                    <button name="action_print_manifest" type="object" string="Cetak manifest" class="btn-secondary"/>
+                    <button name="action_close" type="object" string="Close loading (GI)" class="btn-primary"
+                            invisible="state != 'open'"
+                            confirm="Semua outbound di kendaraan ini akan di-Goods Issue. Lanjut?"/>
+                    <button name="action_print_surat_jalan" type="object" string="Cetak surat jalan"
+                            invisible="state != 'close'" class="btn-primary"/>
+                    <button name="action_cancel" type="object" string="Cancel loading" invisible="state != 'open'"/>
+                    <field name="state" widget="statusbar"/>
+                </header>
+                <sheet>
+                    <div class="oe_title"><h1><field name="name" readonly="1"/></h1></div>
+                    <group>
+                        <group>
+                            <field name="date" readonly="state != 'open'"/>
+                            <field name="vehicle_plate" readonly="state != 'open'"/>
+                            <field name="driver" readonly="state != 'open'"/>
+                        </group>
+                        <group>
+                            <field name="line_count"/>
+                            <field name="loaded_count"/>
+                            <field name="total_weight"/>
+                            <field name="company_id" groups="base.group_multi_company"/>
+                        </group>
+                    </group>
+                    <field name="picking_ids" readonly="state != 'open'"
+                           domain="[('picking_type_code', '=', 'outgoing'), ('state', 'not in', ('done', 'cancel')), ('wms_loading_id', '=', False)]"
+                           widget="many2many" options="{'no_create': True}">
+                        <list>
+                            <field name="name"/>
+                            <field name="partner_id"/>
+                            <field name="wms_shipping_group"/>
+                            <field name="origin"/>
+                            <field name="wms_stage" widget="badge"/>
+                            <field name="state"/>
+                        </list>
+                    </field>
+                </sheet>
+            </form>
+        </field>
+    </record>
+    <record id="action_loading" model="ir.actions.act_window">
+        <field name="name">Loading Job</field>
+        <field name="res_model">wms.loading</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+    <!-- POD -->
+    <record id="view_pod_list" model="ir.ui.view">
+        <field name="name">wms.pod.list</field>
+        <field name="model">wms.pod</field>
+        <field name="arch" type="xml">
+            <list decoration-danger="has_difference" decoration-success="state == 'done' and not has_difference">
+                <field name="name"/>
+                <field name="partner_id"/>
+                <field name="loading_id"/>
+                <field name="received_at"/>
+                <field name="received_by"/>
+                <field name="has_difference"/>
+                <field name="state" widget="badge"/>
+            </list>
+        </field>
+    </record>
+    <record id="view_pod_form" model="ir.ui.view">
+        <field name="name">wms.pod.form</field>
+        <field name="model">wms.pod</field>
+        <field name="arch" type="xml">
+            <form>
+                <header><field name="state" widget="statusbar"/></header>
+                <sheet>
+                    <div class="oe_title"><h1><field name="name" readonly="1"/></h1></div>
+                    <group>
+                        <group>
+                            <field name="picking_id" readonly="1"/>
+                            <field name="partner_id"/>
+                            <field name="loading_id"/>
+                            <field name="token" groups="base.group_no_one"/>
+                        </group>
+                        <group>
+                            <field name="received_at"/>
+                            <field name="received_by"/>
+                                        <field name="has_difference"/>
+                        </group>
+                    </group>
+                    <field name="line_ids">
+                        <list editable="bottom" decoration-danger="qty_received != qty_sent">
+                            <field name="product_id"/>
+                            <field name="qty_sent"/>
+                            <field name="qty_received"/>
+                            <field name="uom_id"/>
+                            <field name="remark"/>
+                        </list>
+                    </field>
+                    <group>
+                        <field name="photo" widget="image" options="{'size': [320, 320]}"/>
+                        <field name="remark"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+    <record id="action_pod" model="ir.actions.act_window">
+        <field name="name">POD (Proof of Delivery)</field>
+        <field name="res_model">wms.pod</field>
+        <field name="view_mode">list,form</field>
+    </record>
+</odoo>

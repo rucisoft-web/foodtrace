@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+    <record id="cron_sap_post_queue" model="ir.cron">
+        <field name="name">WMS: kirim antrean posting SAP B1</field>
+        <field name="model_id" ref="model_wms_sap_document"/>
+        <field name="state">code</field>
+        <field name="code">model._cron_post_queue()</field>
+        <field name="interval_number">5</field>
+        <field name="interval_type">minutes</field>
+        <field name="active">True</field>
+    </record>
+    <record id="cron_auto_release" model="ir.cron">
+        <field name="name">WMS: auto release karantina</field>
+        <field name="model_id" ref="stock.model_stock_quant"/>
+        <field name="state">code</field>
+        <field name="code">model._cron_auto_release()</field>
+        <field name="interval_number">1</field>
+        <field name="interval_type">hours</field>
+        <field name="active">True</field>
+    </record>
+</odoo>

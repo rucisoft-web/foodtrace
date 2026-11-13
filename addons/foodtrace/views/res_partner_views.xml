@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_partner_form_wms" model="ir.ui.view">
+        <field name="name">res.partner.form.wms</field>
+        <field name="model">res.partner</field>
+        <field name="inherit_id" ref="base.view_partner_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//notebook" position="inside">
+                <page string="FoodTrace" name="wms">
+                    <group>
+                        <field name="wms_is_source"/>
+                        <field name="wms_is_destination"/>
+                        <field name="wms_over_receive_pct" invisible="not wms_is_source"/>
+                        <field name="wms_min_shelf_life_pct"/>
+                        <field name="wms_owner_code"/>
+                    </group>
+                </page>
+            </xpath>
+        </field>
+    </record>
+</odoo>

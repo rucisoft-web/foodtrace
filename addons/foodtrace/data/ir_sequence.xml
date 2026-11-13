@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+    <record id="seq_loading" model="ir.sequence">
+        <field name="name">WMS loading job</field>
+        <field name="code">wms.loading</field>
+        <field name="prefix">LD/%(y)s%(month)s/</field>
+        <field name="padding">4</field>
+        <field name="company_id" eval="False"/>
+    </record>
+    <record id="seq_inventory_check" model="ir.sequence">
+        <field name="name">WMS inventory check</field>
+        <field name="code">wms.inventory.check</field>
+        <field name="prefix">IC/%(y)s%(month)s/</field>
+        <field name="padding">4</field>
+        <field name="company_id" eval="False"/>
+    </record>
+    <record id="seq_butcher_out" model="ir.sequence">
+        <field name="name">WMS butcher out</field>
+        <field name="code">wms.butcher.out</field>
+        <field name="prefix">BO/%(y)s%(month)s/</field>
+        <field name="padding">4</field>
+        <field name="company_id" eval="False"/>
+    </record>
+    <record id="seq_butcher_in" model="ir.sequence">
+        <field name="name">WMS butcher in</field>
+        <field name="code">wms.butcher.in</field>
+        <field name="prefix">BI/%(y)s%(month)s/</field>
+        <field name="padding">4</field>
+        <field name="company_id" eval="False"/>
+    </record>
+</odoo>

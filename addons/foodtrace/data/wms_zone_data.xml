@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+    <!-- Standar QA Indoguna yang disetujui 10 November 2026. -->
+    <record id="zone_frozen" model="wms.zone.standard">
+        <field name="sequence">1</field>
+        <field name="zone">frozen</field>
+        <field name="name">Frozen</field>
+        <field name="code">FZ</field>
+        <field name="shelf_life_days">540</field>
+        <field name="color">#2563eb</field>
+    </record>
+    <record id="zone_chilled" model="wms.zone.standard">
+        <field name="sequence">2</field>
+        <field name="zone">chilled</field>
+        <field name="name">Chilled</field>
+        <field name="code">CH</field>
+        <field name="shelf_life_days">180</field>
+        <field name="color">#0d9488</field>
+    </record>
+    <record id="zone_dry" model="wms.zone.standard">
+        <field name="sequence">3</field>
+        <field name="zone">dry</field>
+        <field name="name">Dry</field>
+        <field name="code">DR</field>
+        <field name="shelf_life_days">365</field>
+        <field name="color">#d97706</field>
+    </record>
+    <record id="param_sap_mode" model="ir.config_parameter">
+        <field name="key">foodtrace.sap_mode</field>
+        <field name="value">simulation</field>
+    </record>
+</odoo>

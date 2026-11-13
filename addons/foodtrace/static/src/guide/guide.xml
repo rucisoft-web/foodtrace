@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+    <t t-name="foodtrace.GuideScreen">
+        <div class="o_ft_screen">
+            <p class="o_ft_purpose" t-esc="props.screen.purpose"/>
+            <div t-if="props.screen.roles.length and !props.compact" class="o_ft_roles">
+                <span t-foreach="props.screen.roles" t-as="r" t-key="r" class="badge text-bg-light" t-esc="r"/>
+            </div>
+            <t t-if="props.screen.steps.length">
+                <h6>Cara pengisian</h6>
+                <ol class="o_ft_steps">
+                    <li t-foreach="props.screen.steps" t-as="s" t-key="s_index" t-esc="s"/>
+                </ol>
+            </t>
+            <t t-if="props.screen.fields.length">
+                <h6>Keterangan field</h6>
+                <table class="table table-sm o_ft_fields">
+                    <thead><tr><th>Field</th><th>Keterangan</th></tr></thead>
+                    <tbody>
+                        <tr t-foreach="props.screen.fields" t-as="f" t-key="f_index">
+                            <td class="o_ft_label" t-esc="f.label"/>
+                            <td t-esc="f.desc"/>
+                        </tr>
+                    </tbody>
+                </table>
+            </t>
+            <div t-if="props.screen.tips.length" class="alert alert-info o_ft_tips">
+                <b>Perlu diingat</b>
+                <ul class="mb-0">
+                    <li t-foreach="props.screen.tips" t-as="t" t-key="t_index" t-esc="t"/>
+                </ul>
+            </div>
+        </div>
+    </t>
+
+    <t t-name="foodtrace.GuideDialog">
+        <Dialog title="props.data.screen ? 'Bantuan: ' + props.data.screen.title : 'Bantuan FoodTrace'" size="'lg'">
+            <t t-if="props.data.screen">
+                <GuideScreen screen="props.data.screen"/>
+            </t>
+            <t t-else="">
+                <p>Belum ada keterangan khusus untuk layar ini. Mulai dari konsep dasar:</p>
+                <ul>
+                    <li t-foreach="props.data.concepts" t-as="c" t-key="c.key">
+                        <a href="#" t-on-click.prevent="() => this.openGuide(c.key)" t-esc="c.title"/>
+                    </li>
+                </ul>
+            </t>
+            <t t-set-slot="footer">
+                <button class="btn btn-primary" t-on-click="() => this.openGuide(props.data.screen?.key)">Buka panduan lengkap</button>
+                <button class="btn btn-secondary" t-on-click="props.close">Tutup</button>
+            </t>
+        </Dialog>
+    </t>
+
+    <t t-name="foodtrace.GuideSystray">
+        <div t-if="state.visible" class="o_nav_entry o_ft_help_btn" role="button" title="Bantuan layar ini" t-on-click="onClick">
+            <i class="fa fa-lg fa-question-circle"/>
+        </div>
+    </t>
+
+    <t t-name="foodtrace.GuidePage">
+        <div class="o_ft_guide o_action">
+            <aside class="o_ft_nav">
+                <div class="o_ft_brand">Panduan FoodTrace</div>
+                <input class="form-control mb-2" placeholder="Cari layar atau field…" t-model="state.query"/>
+                <select class="form-select mb-3" t-model="state.role">
+                    <option value="all">Semua kelompok pengguna</option>
+                    <option t-foreach="state.guide?.roles or []" t-as="r" t-key="r.key" t-att-value="r.key" t-esc="r.name"/>
+                </select>
+                <a href="#" class="o_ft_nav_head" t-on-click.prevent="() => this.jump('guide-concepts')">1. Konsep dasar</a>
+                <t t-foreach="roles" t-as="role" t-key="role.key">
+                    <a href="#" class="o_ft_nav_head" t-on-click.prevent="() => this.jump('guide-role-' + role.key)">
+                        <t t-esc="role_index + 2"/>. <t t-esc="role.name"/>
+                    </a>
+                    <t t-foreach="role.screens" t-as="s" t-key="s.key">
+                        <a t-if="matches(s)" href="#" class="o_ft_nav_item" t-on-click.prevent="() => this.jump('guide-' + role.key + '-' + s.key)" t-esc="s.title"/>
+                    </t>
+                </t>
+                <button class="btn btn-secondary w-100 mt-3" t-on-click="print"><i class="fa fa-print"/> Cetak panduan</button>
+            </aside>
+            <main class="o_ft_content" t-if="state.guide">
+                <section id="guide-concepts">
+                    <h1>Panduan penggunaan FoodTrace</h1>
+                    <p class="text-muted">WMS cold chain Indoguna Group. Bagian 1 menjelaskan konsep yang dipakai di semua
+                        layar; bagian berikutnya menjelaskan setiap layar per kelompok pengguna, mulai dari tujuan, cara
+                        pengisian, lalu keterangan setiap field.</p>
+                    <h2>1. Konsep dasar</h2>
+                    <div t-foreach="state.guide.concepts" t-as="c" t-key="c.key" t-att-id="'guide-' + c.key" class="o_ft_concept">
+                        <h4 t-esc="c.title"/>
+                        <p t-foreach="c.body" t-as="p" t-key="p_index" t-esc="p"/>
+                    </div>
+                </section>
+                <section t-foreach="roles" t-as="role" t-key="role.key" t-att-id="'guide-role-' + role.key" class="o_ft_role">
+                    <h2><t t-esc="role_index + 2"/>. <t t-esc="role.name"/></h2>
+                    <p class="text-muted" t-esc="role.desc"/>
+                    <t t-foreach="role.screens" t-as="s" t-key="s.key">
+                        <div t-if="matches(s)" class="o_ft_card" t-att-id="'guide-' + role.key + '-' + s.key">
+                            <span t-att-id="firstRole[s.key] === role.key ? 'guide-' + s.key : null"/>
+                            <h3><t t-esc="role_index + 2"/>.<t t-esc="s_index + 1"/> <t t-esc="s.title"/></h3>
+                            <GuideScreen screen="s"/>
+                        </div>
+                    </t>
+                </section>
+            </main>
+        </div>
+    </t>
+</templates>
