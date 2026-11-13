@@ -186,6 +186,50 @@ class TestWms(TransactionCase):
         self.assertEqual(doc.state, "error")
         self.assertIn("NOPE", doc.error)
 
+    def test_sync_sap_uom_ship_to_and_own_stock(self):
+        """Data riil SARKUL: satuan SAP (JAR, GRAM), banyak outlet per pelanggan, owner = gudang sendiri."""
+        jar = self.env.ref("foodtrace.uom_sap_jar")
+        gram = self.env.ref("uom.product_uom_gram")
+        capers = self.env["product.product"].create({
+            "name": "FALLOT CAPERS 125GR", "default_code": "EFR03FAL0005", "is_storable": True,
+            "uom_id": jar.id, "uom_po_id": jar.id, "wms_zone": "dry"})
+        truffle = self.env["product.product"].create({
+            "name": "GF SM TRUFFLE", "default_code": "EIT01GEO5004", "is_storable": True,
+            "uom_id": gram.id, "uom_po_id": gram.id, "wms_zone": "chilled"})
+        customer = self.env["res.partner"].create({"name": "PT SUPRA BOGA LESTARI Tbk", "ref": "SM0036"})
+        self.env.company.partner_id.wms_owner_code = "95-SKI"
+        self.wh.wms_sap_code = "95-SKI"
+
+        def sor(number, outlet, items):
+            return [{"number": number, "outbound_type": "Sales Order", "warehouse": "95-SKI", "owner": "95-SKI",
+                     "destination_code": "SM0036", "destination_outlet": outlet, "delivery_date": "11/13/2026",
+                     "items": items}]
+
+        Sync = self.env["wms.sync.document"]
+        doc = Sync.import_json(sor("95-SKI-SOR-261100001", "RANCH MARKET RM99 KEMANG", [
+            {"item_code": "EFR03FAL0005", "uom_id": "JAR", "qty": 6},
+            {"item_code": "EIT01GEO5004", "uom_id": "KG", "qty": 0.5},
+            {"item_code": "HUS2LEP002", "uom_id": "PCK", "qty": 3}]))
+        self.assertEqual(doc.state, "done", doc.error)
+        picking = doc.picking_id
+        self.assertFalse(picking.owner_id, "owner = perusahaan sendiri berarti stok sendiri")
+        self.assertEqual(picking.partner_id.parent_id, customer)
+        self.assertEqual(picking.partner_id.type, "delivery")
+        self.assertEqual(picking.partner_id.name, "RANCH MARKET RM99 KEMANG")
+        uoms = {m.product_id: m.product_uom for m in picking.move_ids}
+        self.assertEqual(uoms[capers], jar)
+        self.assertEqual(uoms[truffle], self.env.ref("uom.product_uom_kgm"), "KG ke item GRAM tetap satu kategori")
+        self.assertEqual(uoms[self.cheese], self.kg, "satuan lain kategori tidak dikonversi")
+        # Outlet yang sama dipakai ulang, outlet lain jadi alamat kirim baru di bawah pelanggan yang sama.
+        again = Sync.import_json(sor("95-SKI-SOR-261100002", "ranch market rm99 kemang", [
+            {"item_code": "EFR03FAL0005", "uom_id": "JAR", "qty": 1}]))
+        self.assertEqual(again.picking_id.partner_id, picking.partner_id)
+        other = Sync.import_json(sor("95-SKI-SOR-261100003", "RANCH MARKET P.I.", [
+            {"item_code": "EFR03FAL0005", "uom_id": "JAR", "qty": 1}]))
+        self.assertEqual(other.picking_id.partner_id.parent_id, customer)
+        self.assertNotEqual(other.picking_id.partner_id, picking.partner_id)
+        self.assertTrue(customer.wms_is_destination)
+
     def test_dashboard_summary(self):
         lot = self.env["stock.lot"].create({
             "name": "LEP-D", "product_id": self.cheese.id, "expiration_date": datetime.now() + timedelta(days=10)})

@@ -1,22 +1,31 @@
-"""Data demo WMS PT Sarana Kulina Intisejahtera.
+"""Data demo WMS PT Sarana Kulina Intisejahtera dari tarikan riil SAP B1 (DB SARKUL, 13 Nov 2026).
 
-Sumber: saldo akhir persediaan per 1 Januari 2025 (company 95, GENERAL WAREHOUSE), 615 item dengan zona usulan.
-Saldo dipakai sebagai stok awal; di atasnya dibangun arus 30 hari terakhir, log suhu 14 hari, dokumen sinkron
-SAP, antrean posting, picking job, loading, POD, inventory check dan butcher, sehingga dashboard dan semua menu
-langsung berisi data yang masuk akal.
+Sumber (dibuat dengan scripts/sap_xlsx_to_demo.py dari tiga file xlsx SAP):
+  data/sarkul/master_item.csv  842 item aktif 2025-2026: group, sub group, brand, satuan SAP, OnHand, ItemCost
+  data/sarkul/po.csv           69 PO (239 baris) 1 Sep - 13 Nov 2026
+  data/sarkul/so.csv           SO Closed 7 hari terakhir + semua SO Open
+
+Alur demo memakai jalur yang sama dengan produksi: setiap PO dan SO masuk sebagai dokumen sinkron SAP
+(POR/SOR) lalu diproses jadi picking. PO Closed diterima (lot, LPN, dock, container), SO Closed 7 hari
+terakhir dikirim FEFO, PO dan SO Open menjadi pekerjaan terbuka. Stok awal dihitung mundur supaya stok
+akhir sama dengan OnHand SAP: awal = OnHand - PO diterima + SO terkirim (tidak pernah negatif).
+
+Tanggal digeser: tanggal tarik (13 Nov 2026) = hari demo dipasang, sehingga dashboard selalu segar.
+Lot, kedaluwarsa, bin, palet, kendaraan dan pengemudi tidak ada di SAP dan dibangkitkan.
 """
 
 import csv
-import json
 import logging
 import random
 from collections import defaultdict
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 _logger = logging.getLogger(__name__)
 
-DATA = Path(__file__).parent / "data"
+DATA = Path(__file__).parent / "data" / "sarkul"
+DATA_DAY = date(2026, 11, 13)
+HISTORY_DAYS = 7
 
 ZONE_CODE = {"frozen": "FZ", "chilled": "CH", "dry": "DR"}
 ZONE_NAME = {"frozen": "Frozen", "chilled": "Chilled", "dry": "Dry"}
@@ -24,43 +33,46 @@ ZONE_NAME = {"frozen": "Frozen", "chilled": "Chilled", "dry": "Dry"}
 RACKS = {"frozen": (6, 6, 4), "chilled": (6, 8, 4), "dry": (8, 8, 4)}
 SHELF_LIFE = {"frozen": 540, "chilled": 120, "dry": 365}
 
-CUSTOMERS = [
-    ("C-HTL001", "Hotel Nusantara Indah", "RUTE-01", 60),
-    ("C-HTL002", "Hotel Pantai Losari Permai", "RUTE-01", 60),
-    ("C-RST001", "Resto Pelangi Rasa", "RUTE-02", 0),
-    ("C-RST002", "Resto Dapur Sulawesi", "RUTE-02", 0),
-    ("C-CAF001", "Cafe Senja Kopi", "RUTE-03", 0),
-    ("C-BAK001", "Bakery Mawar Sari", "RUTE-03", 40),
-    ("C-CTR001", "Catering Sejahtera Bersama", "RUTE-04", 0),
-    ("C-RTL001", "Swalayan Segar Jaya", "RUTE-04", 50),
-    ("C-RST003", "Steakhouse Bara Api", "RUTE-02", 0),
-    ("C-HTL003", "Hotel Bukit Karst", "RUTE-05", 60),
-    ("C-RST004", "Pizzeria Nonna", "RUTE-05", 0),
-    ("C-CAF002", "Kedai Teh Daun", "RUTE-03", 0),
-]
-SUPPLIERS = [
-    ("VL0101", "PT Daging Impor Nusantara", 2),
-    ("VL0102", "PT Seafood Samudra Timur", 0),
-    ("VL0103", "CV Dairy Prima", 5),
-    ("VL0104", "PT Bahan Kue Sentosa", 3),
-    ("VL0105", "PT Frozen Food Makmur", 0),
-]
+# Kelompok kirim dari prefix CardCode SAP (data SAP tidak membawa rute).
+SHIPPING_GROUP = {"GR": "CABANG", "EC": "E-COMMERCE", "SM": "RITEL MODERN", "HT": "HOTEL", "RS": "RESTO",
+                  "CT": "KATERING"}
+# Min. sisa umur saat kirim (%) per jenis pelanggan; angka sementara sampai ada ketentuan resmi.
+MIN_LIFE = {"SM": 50, "HT": 60}
+PLATES = ["B 9123 KXT", "B 9561 TRS", "B 9802 UAK", "B 9017 NDP", "B 9442 SKI"]
+DRIVERS = ["Agus", "Bambang", "Dedi", "Hendra", "Rizal", "Slamet"]
 
 
 def post_init_hook(env):
     Demo(env).run()
 
 
+def _rows(name):
+    return list(csv.DictReader((DATA / name).open(encoding="utf-8")))
+
+
+def _sap_date(day):
+    return day.strftime("%m/%d/%Y")
+
+
 class Demo:
     def __init__(self, env):
         self.rnd = random.Random(95)
         self.now = datetime.now().replace(microsecond=0)
+        self.shift = self.now.date() - DATA_DAY
         self.base_env = env
         self.env = env
+        self.master = _rows("master_item.csv")
+        self.po = _rows("po.csv")
+        self.so = _rows("so.csv")
+        self.window_start = DATA_DAY - timedelta(days=HISTORY_DAYS - 1)
+
+    def day(self, text):
+        """Tanggal SAP (YYYY-MM-DD) digeser ke kalender demo."""
+        return datetime.strptime(text, "%Y-%m-%d").date() + self.shift
 
     # ------------------------------------------------------------------ main
     def run(self):
-        _logger.info("FoodTrace demo: membuat data Sarana Kulina")
+        _logger.info("FoodTrace demo: membuat data Sarana Kulina dari tarikan SAP")
         self._company()
         self._settings()
         self._locations()
@@ -69,7 +81,6 @@ class Demo:
         self._opening_stock()
         self._history()
         self._open_work()
-        self._sync_documents()
         self._sap_queue()
         self._inventory_and_butcher()
         _logger.info("FoodTrace demo selesai")
@@ -81,14 +92,14 @@ class Demo:
         idr.active = True
         company = env["res.company"].create({
             "name": "PT Sarana Kulina Intisejahtera", "currency_id": idr.id,
-            "wms_sap_company_db": "SBO_SARANA_KULINA", "city": "Makassar",
+            "wms_sap_company_db": "SARKUL", "city": "Jakarta",
             "country_id": env.ref("base.id").id,
         })
         admin = env.ref("base.user_admin")
         admin.write({"company_ids": [(4, company.id)], "company_id": company.id})
         env.ref("base.user_root").write({"company_ids": [(4, company.id)]})
         self.company = company
-        self.env = env(context=dict(env.context, allowed_company_ids=[company.id], tz="Asia/Makassar",
+        self.env = env(context=dict(env.context, allowed_company_ids=[company.id], tz="Asia/Jakarta",
                                     tracking_disable=True, mail_create_nolog=True, mail_notrack=True))
         company = self.company = self.env["res.company"].browse(company.id)
         self.wh = self.env["stock.warehouse"].search([("company_id", "=", company.id)], limit=1)
@@ -162,56 +173,71 @@ class Demo:
     # --------------------------------------------------------------- partners
     def _partners(self):
         Partner = self.env["res.partner"]
-        self.customers = Partner
-        self.route = {}
-        for ref, name, group, life in CUSTOMERS:
-            partner = Partner.create({
-                "name": name, "ref": ref, "city": "Makassar", "is_company": True,
-                "wms_min_shelf_life_pct": life})
-            self.customers |= partner
-            partner.wms_is_destination = True
-            self.route[partner.id] = group
-        self.suppliers = Partner
-        for ref, name, tol in SUPPLIERS:
-            self.suppliers |= Partner.create({"name": name, "ref": ref, "is_company": True,
-                                              "wms_over_receive_pct": tol, "wms_is_source": True})
+        customers, suppliers = {}, {}
+        for row in self.so:
+            customers.setdefault(row["card_code"], row["card_name"])
+        for row in self.po:
+            suppliers.setdefault(row["card_code"], row["card_name"])
+        created = Partner.create([{
+            "name": name, "ref": code, "is_company": True, "wms_is_destination": True,
+        } for code, name in sorted(customers.items())])
+        self.customers = {p.ref: p for p in created}
+        created = Partner.create([{
+            "name": name, "ref": code, "is_company": True, "wms_is_source": True,
+            # Pemasok impor (VI*) mengirim keju/daging berat aktual: toleransi lebih terima 2%.
+            "wms_over_receive_pct": 2 if code.startswith("VI") else 0,
+        } for code, name in sorted(suppliers.items())])
+        self.suppliers = {p.ref: p for p in created}
+
+    def _apply_customer_shelf_life(self):
+        """Batas sisa umur pelanggan dipasang setelah riwayat dibangun (riwayat = fakta yang sudah terjadi)."""
+        for code, partner in self.customers.items():
+            life = MIN_LIFE.get(code[:2])
+            if life:
+                partner.wms_min_shelf_life_pct = life
 
     # --------------------------------------------------------------- products
+    def _uoms(self):
+        env = self.env
+        uoms = {"KG": env.ref("uom.product_uom_kgm"), "GRAM": env.ref("uom.product_uom_gram")}
+        for code in {row["uom"] for row in self.master}:
+            if code not in uoms:
+                uoms[code] = env.ref(f"foodtrace.uom_sap_{code.lower()}", raise_if_not_found=False) \
+                    or env.ref("foodtrace.uom_sap_pce")
+        return uoms
+
     def _products(self):
         env = self.env
-        kg = env.ref("uom.product_uom_kgm")
-        units = env.ref("uom.product_uom_unit")
+        uoms = self._uoms()
         fefo = env.ref("product_expiry.removal_fefo")
-        root = env["product.category"].create({"name": "Indoguna", "removal_strategy_id": fefo.id})
+        root = env["product.category"].create({"name": "Sarana Kulina", "removal_strategy_id": fefo.id})
         categories = {}
-        rows = list(csv.DictReader((DATA / "saldo_sarana_kulina_20250101.csv").open(encoding="utf-8")))
         vals = []
-        for row in rows:
+        for row in self.master:
             group = row["item_group"] or "LAIN-LAIN"
             if group not in categories:
                 categories[group] = env["product.category"].create({"name": group, "parent_id": root.id})
             zone = row["zone"]
-            qty, value = float(row["qty"]), float(row["value"])
             catch = row["catch_weight"] == "1"
             life = SHELF_LIFE[zone]
+            uom = uoms[row["uom"]]
             vals.append({
                 "name": row["item_name"], "default_code": row["item_code"], "is_storable": True,
                 "tracking": "lot", "use_expiration_date": True, "expiration_time": life,
                 "use_time": max(1, life - 30), "removal_time": max(1, life - 7), "alert_time": 30,
-                "uom_id": (kg if catch else units).id, "uom_po_id": (kg if catch else units).id,
+                "uom_id": uom.id, "uom_po_id": uom.id,
                 "categ_id": categories[group].id, "wms_zone": zone, "wms_catch_weight": catch,
                 "wms_item_group": group, "wms_sub_group": row["sub_group"], "wms_country": row["country"],
-                "standard_price": round(value / qty, 2) if qty else 0.0,
-                "wms_min_receive_life_pct": {"frozen": 50, "chilled": 60, "dry": 40}[zone],
-                "wms_units_per_pallet": 60 if not catch else 0, "weight": 1.0 if catch else 0.0,
+                "wms_brand": row["brand"],
+                "standard_price": float(row["item_cost"]) or float(row["last_price"]),
+                "wms_units_per_pallet": 0 if catch else 60, "weight": 1.0 if catch else 0.0,
                 "wms_picking_strategy": "fefo",
             })
         templates = env["product.template"].with_company(self.company).create(vals)
-        self.rows = {row["item_code"]: row for row in rows}
+        self.rows = {row["item_code"]: row for row in self.master}
         self.products = {t.default_code: t.product_variant_id for t in templates}
-        # Item yang wajib karantina saat terima (impor seafood/caviar) dan dilepas otomatis setelah 2 hari.
-        quarantine = [t for t in templates if t.wms_sub_group in ("CAVIAR",)][:5]
-        for t in quarantine:
+        # Caviar impor wajib karantina saat terima dan dilepas otomatis setelah 2 hari.
+        for t in templates.filtered(lambda t: t.wms_sub_group == "CAVIAR"):
             t.write({"wms_auto_quarantine": True, "wms_auto_release": True, "wms_quarantine_days": 2})
         # Format barcode karton GS1 untuk item berat aktual.
         catch_tmpls = templates.filtered("wms_catch_weight")
@@ -222,14 +248,26 @@ class Demo:
             "pattern": r"^(?P<carton>\d{6})(?P<weight>\d{4})(?P<lot>[A-Z0-9]{5})$",
             "product_tmpl_ids": [(6, 0, catch_tmpls.filtered(lambda t: "US" in (t.wms_country or "")).ids)]})
 
+    def _apply_receive_life(self):
+        for product in self.products.values():
+            product.product_tmpl_id.wms_min_receive_life_pct = {"frozen": 50, "chilled": 60, "dry": 40}[
+                product.wms_zone]
+
     # ---------------------------------------------------------- opening stock
-    def _lot_expiry(self, zone):
+    def _closed_po(self):
+        return [r for r in self.po if r["status"] == "Closed" and r["item_code"] in self.products]
+
+    def _closed_so(self):
+        return [r for r in self.so if r["status"] == "Closed" and r["item_code"] in self.products
+                and self.window_start <= datetime.strptime(r["date"], "%Y-%m-%d").date() <= DATA_DAY]
+
+    def _lot_expiry(self, zone, allow_expired=True):
         """Sebaran umur: sebagian kecil sudah lewat atau mendekati expired, mayoritas aman."""
         r = self.rnd.random()
-        if r < 0.03:
+        if r < 0.03 and allow_expired:
             days = -self.rnd.randint(3, 60)
         elif r < 0.10:
-            days = self.rnd.randint(2, 30)
+            days = self.rnd.randint(15, 30)
         elif r < 0.18:
             days = self.rnd.randint(31, 60)
         elif r < 0.25:
@@ -240,196 +278,246 @@ class Demo:
             days = self.rnd.randint(121, max(150, SHELF_LIFE[zone]))
         return self.now + timedelta(days=days, hours=self.rnd.randint(0, 23))
 
+    def _opening_qty(self):
+        """Stok awal per item supaya stok akhir = OnHand SAP dan saldo tidak pernah minus di tengah jalan."""
+        events = defaultdict(list)
+        for r in self._closed_po():
+            events[r["item_code"]].append((r["date"], 0, float(r["qty"])))
+        for r in self._closed_so():
+            events[r["item_code"]].append((r["date"], 1, -float(r["qty"])))
+        opening = {}
+        for code, row in self.rows.items():
+            balance = low = 0.0
+            for _d, _k, qty in sorted(events[code]):
+                balance += qty
+                low = min(low, balance)
+            opening[code] = round(max(float(row["onhand"]) - balance, -low, 0.0), 3)
+        return opening
+
     def _opening_stock(self):
         env = self.env
         Lot, Pack, Quant = env["stock.lot"], env["stock.quant.package"], env["stock.quant"]
+        weight = env.ref("uom.product_uom_categ_kgm")
+        shipped = {r["item_code"] for r in self._closed_so()}
+        self.opening = self._opening_qty()
         cartons = []
         seq = 0
-        in_date = self.now - timedelta(days=40)
+        in_date = datetime.combine(date(2026, 8, 25) + self.shift, datetime.min.time())
         for code, product in self.products.items():
-            row = self.rows[code]
-            qty = float(row["qty"])
-            zone = row["zone"]
+            qty = self.opening[code]
+            zone = self.rows[code]["zone"]
             if qty <= 0:
                 continue
             n = 1 if qty < 20 else self.rnd.choice((1, 2, 2, 3))
-            parts = [qty / n] * n
-            if product.uom_id.category_id != env.ref("uom.product_uom_categ_kgm"):
+            parts = [round(qty / n, 3)] * n
+            if product.uom_id.category_id != weight:
                 parts = [int(qty // n)] * n
-                parts[-1] += qty - sum(parts)
+            parts[-1] = round(qty - sum(parts[:-1]), 3)
             for i, part in enumerate(parts):
                 if part <= 0:
                     continue
                 seq += 1
-                exp = self._lot_expiry(zone)
+                exp = self._lot_expiry(zone, allow_expired=code not in shipped)
                 lot = Lot.create({
                     "name": f"{code[-6:]}-{exp:%y%m}{i + 1}", "product_id": product.id, "company_id": self.company.id,
-                    "expiration_date": exp, "wms_mfg_date": (exp - timedelta(days=SHELF_LIFE[zone])).date()})
+                    "expiration_date": exp, "wms_mfg_date": (exp - timedelta(days=SHELF_LIFE[zone])).date(),
+                    "wms_brand": self.rows[code]["brand"]})
                 pack = Pack.create({"name": f"SKI{seq:07d}", "wms_closed": True, "company_id": self.company.id,
                                     "wms_pallet_no": f"P{seq:05d}", "wms_pack_date": in_date.date()})
                 loc = self._next_bin(zone) if i == 0 or self.rnd.random() < 0.7 else self.pck[zone]
                 Quant._update_available_quantity(product, loc, part, lot_id=lot, package_id=pack, in_date=in_date)
                 if product.wms_catch_weight and zone != "dry":
-                    remaining = part
-                    for c in range(min(25, max(1, int(part // 8)))):
-                        weight = round(min(remaining, self.rnd.uniform(4.5, 12.5)), 3)
-                        if weight <= 0:
-                            break
-                        remaining -= weight
-                        cartons.append({
-                            "name": f"{lot.name}-{c + 1:03d}", "product_id": product.id, "lot_id": lot.id,
-                            "package_id": pack.id, "location_id": loc.id, "weight_kg": weight,
-                            "weight_lb": round(weight * 2.20462, 2), "state": "available",
-                            "raw_barcode": f"(01)0{sum(map(ord, code)) * 7919:012d}(3102){int(weight * 100):06d}"
-                                           f"(10){lot.name}(17){exp:%y%m%d}(21){c + 1:05d}",
-                            "company_id": self.company.id})
+                    cartons += self._cartons(product, lot, pack, loc, part, exp)
         env["wms.carton"].create(cartons)
-        # Item low: min stock di atas stok untuk sebagian item fast moving.
-        codes = list(self.products)
-        self.rnd.shuffle(codes)
-        for code in codes[:28]:
-            product = self.products[code]
-            qty = float(self.rows[code]["qty"])
-            product.product_tmpl_id.wms_min_stock = round(qty * self.rnd.uniform(1.2, 2.5) + 5)
-        for code in codes[28:220]:
-            product = self.products[code]
-            qty = float(self.rows[code]["qty"])
-            product.product_tmpl_id.wms_min_stock = round(qty * self.rnd.uniform(0.1, 0.4))
+
+    def _cartons(self, product, lot, pack, loc, qty, exp):
+        cartons = []
+        remaining = qty
+        code = product.default_code
+        for c in range(min(25, max(1, int(qty // 8)))):
+            weight = round(min(remaining, self.rnd.uniform(4.5, 12.5)), 3)
+            if weight <= 0:
+                break
+            remaining -= weight
+            cartons.append({
+                "name": f"{lot.name}-{c + 1:03d}", "product_id": product.id, "lot_id": lot.id,
+                "package_id": pack.id, "location_id": loc.id, "weight_kg": weight,
+                "weight_lb": round(weight * 2.20462, 2), "state": "available",
+                "raw_barcode": f"(01)0{sum(map(ord, code)) * 7919:012d}(3102){int(weight * 100):06d}"
+                               f"(10){lot.name}(17){exp:%y%m%d}(21){c + 1:05d}",
+                "company_id": self.company.id})
+        return cartons
+
+    def _min_stock(self):
+        """Stok minimum = rata-rata SO harian 7 hari terakhir x 5 hari kerja."""
+        sold = defaultdict(float)
+        for r in self._closed_so():
+            sold[r["item_code"]] += float(r["qty"])
+        for code, qty in sold.items():
+            self.products[code].product_tmpl_id.wms_min_stock = round(qty / HISTORY_DAYS * 5, 2)
+
+    # ---------------------------------------------------------- SAP payloads
+    def _sap_uom(self, row):
+        return row["uom"] or self.rows.get(row["item_code"], {}).get("uom") or "PCE"
+
+    def _por_payload(self, lines, container=""):
+        head = lines[0]
+        doc_date = self.day(head["date"])
+        return {
+            "additional_information": [{
+                "doc_entry": head["doc_num"], "vendor_ref_no": head["ref"], "vendor_do_no": head["ref"],
+                "container": container, "remarks": "", "web_trans_no": f"POR-{head['doc_num']}"}],
+            "items": [{"po_line_no": str(i), "item_code": r["item_code"], "item_name": r["item_name"],
+                       "uom_id": self._sap_uom(r), "qty": float(r["qty"]), "remark": "", "is_free": "NO",
+                       "brand_desc": self.rows.get(r["item_code"], {}).get("brand")} for i, r in enumerate(lines)],
+            "number": f"95-SKI-POR-{head['doc_num']}", "inbound_type": "Purchase Order",
+            "source": head["card_code"], "warehouse": "95-SKI", "owner": "95-SKI", "user": "indogunasap",
+            "date": _sap_date(doc_date), "status": head["status"], "obj_type": "22",
+        }
+
+    def _sor_payload(self, lines):
+        head = lines[0]
+        return {
+            "additional_information": [{
+                "doc_entry": head["doc_num"], "vendor_ref_no": head["ref"], "remarks": "",
+                "web_trans_no": f"SOR-{head['doc_num']}"}],
+            "items": [{"so_line_no": str(i), "item_code": r["item_code"], "item_name": r["item_name"],
+                       "uom_id": self._sap_uom(r), "qty": float(r["qty"]), "remark": "",
+                       "brand_desc": self.rows.get(r["item_code"], {}).get("brand"), "grade": "-"}
+                      for i, r in enumerate(lines)],
+            "number": f"95-SKI-SOR-{head['doc_num']}", "outbound_type": "Sales Order",
+            "warehouse": "95-SKI", "owner": "95-SKI", "user": "indogunasap",
+            "destination_code": head["card_code"], "destination_outlet": head["ship_to"] or head["card_name"],
+            "po_date": _sap_date(self.day(head["date"])), "delivery_date": _sap_date(self.day(head["due_date"])),
+            "shipping_group": SHIPPING_GROUP.get(head["card_code"][:2], "UMUM"),
+            "status": head["status"], "priority": "Normal", "obj_type": "17",
+        }
+
+    @staticmethod
+    def _docs(rows):
+        docs = defaultdict(list)
+        for r in rows:
+            docs[r["doc_num"]].append(r)
+        return docs
 
     # ---------------------------------------------------------------- history
-    def _backdate(self, picking, date):
+    def _backdate(self, picking, when):
+        self.env.flush_all()
         cr = self.env.cr
         cr.execute("UPDATE stock_picking SET date_done = %s, scheduled_date = %s, date = %s, date_deadline = NULL "
-                   "WHERE id = %s", (date, date, date, picking.id))
-        cr.execute("UPDATE stock_move SET date = %s WHERE picking_id = %s", (date, picking.id))
-        cr.execute("UPDATE stock_move_line SET date = %s WHERE picking_id = %s", (date, picking.id))
+                   "WHERE id = %s", (when, when, when, picking.id))
+        cr.execute("UPDATE stock_move SET date = %s WHERE picking_id = %s", (when, picking.id))
+        cr.execute("UPDATE stock_move_line SET date = %s WHERE picking_id = %s", (when, picking.id))
         cr.execute("UPDATE stock_quant SET in_date = %s WHERE in_date > %s AND lot_id IN "
-                   "(SELECT lot_id FROM stock_move_line WHERE picking_id = %s)", (date, date, picking.id))
+                   "(SELECT lot_id FROM stock_move_line WHERE picking_id = %s)", (when, when, picking.id))
+        cr.execute("UPDATE wms_sync_document SET create_date = %s WHERE picking_id = %s", (when, picking.id))
         picking.invalidate_recordset()
         picking.move_ids.invalidate_recordset()
         picking.move_line_ids.invalidate_recordset()
 
-    def _make_picking(self, ptype, partner, src, dest, lines, origin=None, extra=None):
-        vals = {
-            "picking_type_id": ptype.id, "partner_id": partner.id, "location_id": src.id,
-            "location_dest_id": dest.id, "origin": origin, "company_id": self.company.id,
-            "move_ids": [(0, 0, {
-                "name": p.name, "product_id": p.id, "product_uom_qty": q, "product_uom": p.uom_id.id,
-                "location_id": src.id, "location_dest_id": dest.id, "company_id": self.company.id,
-            }) for p, q in lines],
-        }
-        vals.update(extra or {})
-        picking = self.env["stock.picking"].create(vals)
-        picking.action_confirm()
-        return picking
+    def _validate(self, picking):
+        picking.with_context(skip_backorder=True, picking_ids_not_to_backorder=picking.ids).button_validate()
 
-    def _receipt(self, date, zone, validate=True):
-        supplier = self.rnd.choice(self.suppliers)
-        candidates = [p for p in self.products.values() if p.wms_zone == zone]
-        lines = []
-        for p in self.rnd.sample(candidates, self.rnd.randint(1, 4)):
-            q = round(self.rnd.uniform(40, 300), 2) if p.wms_catch_weight else self.rnd.randint(12, 240)
-            lines.append((p, q))
-        supplier_loc = self.env.ref("stock.stock_location_suppliers")
-        picking = self._make_picking(
-            self.wh.in_type_id, supplier, supplier_loc, self.rooms[zone], lines,
-            origin=f"95-SKI-POR-{date:%y%m}{self.rnd.randint(100000, 999999)}",
-            extra={"wms_inbound_type": "po", "wms_dock_id": self.rnd.choice(self.docks).id if validate else False,
-                   "wms_container_no": f"{self.rnd.choice(['MSKU', 'TGHU', 'CMAU'])}{self.rnd.randint(1000000, 9999999)}"
-                   if zone != "dry" else False,
-                   "wms_vendor_ref": f"INV/{self.rnd.randint(1000, 9999)}/{date:%y}", "wms_vehicle_plate": f"DD {self.rnd.randint(1000, 9999)} "
-                   f"{self.rnd.choice(['AB', 'XY', 'KL', 'MN'])}", "wms_driver": self.rnd.choice(
-                       ["Andi", "Baso", "Rahman", "Iwan", "Sulaiman", "Yusuf"]),
-                   "wms_delivery_note": f"SJ-{self.rnd.randint(10000, 99999)}"})
-        if not validate:
+    def _receive(self, lines):
+        head = lines[0]
+        zones = {self.products[r["item_code"]].wms_zone for r in lines}
+        imported = head["card_code"].startswith("VI")
+        container = (f"{self.rnd.choice(['MSKU', 'TGHU', 'CMAU', 'MEDU'])}{self.rnd.randint(1000000, 9999999)}"
+                     if imported and zones - {"dry"} else "")
+        doc = self.env["wms.sync.document"].import_json([self._por_payload(lines, container)])
+        picking = doc.picking_id
+        if not picking:
+            _logger.warning("PO %s gagal: %s", head["doc_num"], doc.error)
             return picking
+        when = datetime.combine(self.day(head["date"]), datetime.min.time()) + timedelta(
+            hours=self.rnd.randint(1, 4), minutes=self.rnd.randint(0, 59))
+        picking.write({
+            "wms_dock_id": self.rnd.choice(self.docks).id, "wms_vehicle_plate": self.rnd.choice(PLATES),
+            "wms_driver": self.rnd.choice(DRIVERS), "wms_delivery_note": head["ref"] or f"SJ-{head['doc_num']}"})
+        supplier_loc = self.env.ref("stock.stock_location_suppliers")
         for move in picking.move_ids:
             move.move_line_ids.unlink()
-            exp = self.now + timedelta(days=int(SHELF_LIFE[zone] * self.rnd.uniform(0.75, 0.95)))
+            product = move.product_id
+            zone = product.wms_zone
+            exp = when + timedelta(days=int(SHELF_LIFE[zone] * self.rnd.uniform(0.75, 0.95)))
             lot = self.env["stock.lot"].create({
-                "name": f"{move.product_id.default_code[-6:]}-R{date:%m%d}{move.id % 100:02d}",
-                "product_id": move.product_id.id, "company_id": self.company.id, "expiration_date": exp})
-            pack = self.env["stock.quant.package"].create({"wms_closed": True, "company_id": self.company.id})
+                "name": f"{product.default_code[-6:]}-R{when:%m%d}{move.id % 100:02d}", "product_id": product.id,
+                "company_id": self.company.id, "expiration_date": exp, "wms_brand": product.wms_brand})
+            pack = self.env["stock.quant.package"].create({
+                "wms_closed": True, "company_id": self.company.id, "wms_pack_date": when.date()})
+            dest = self._next_bin(zone)
             self.env["stock.move.line"].create({
-                "move_id": move.id, "picking_id": picking.id, "product_id": move.product_id.id,
+                "move_id": move.id, "picking_id": picking.id, "product_id": product.id,
                 "product_uom_id": move.product_uom.id, "quantity": move.product_uom_qty, "lot_id": lot.id,
-                "location_id": supplier_loc.id, "location_dest_id": self._next_bin(zone).id,
+                "location_id": supplier_loc.id, "location_dest_id": dest.id,
                 "result_package_id": pack.id, "picked": True})
-        picking.with_context(skip_backorder=True).button_validate()
-        self._backdate(picking, date)
+        self._validate(picking)
+        self._backdate(picking, when)
         return picking
 
-    def _pick_quants(self, product, qty, partner):
-        """FEFO: lot non-expired dengan sisa umur memenuhi batas customer, dari rak (bukan QC/DMG)."""
-        minimum = max(55, partner.wms_min_shelf_life_pct or 0)
+    def _fefo_quants(self, product, partner=None):
         quants = self.env["stock.quant"].search([
             ("product_id", "=", product.id), ("location_id", "child_of", self.wh.lot_stock_id.id),
             ("location_id.wms_area", "in", ("blk", "pck")), ("quantity", ">", 0)])
-        quants = quants.filtered(lambda q: q.lot_id.expiration_date and q.lot_id.expiration_date > self.now
-                                 and (q.lot_id.expiration_date - self.now).days / product.expiration_time * 100 >= minimum
-                                 and q.quantity - q.reserved_quantity > 0)
-        return quants.sorted(lambda q: q.lot_id.expiration_date)[:1]
+        minimum = (partner.commercial_partner_id.wms_min_shelf_life_pct or 0) if partner else 0
+        quants = quants.filtered(
+            lambda q: q.lot_id.expiration_date and q.lot_id.expiration_date > self.now
+            and q.quantity - q.reserved_quantity > 0
+            and (not minimum or (q.lot_id.expiration_date - self.now).days / product.expiration_time * 100 >= minimum))
+        return quants.sorted(lambda q: q.lot_id.expiration_date)
 
-    def _delivery(self, date, partner=None, validate=True, n_lines=None):
-        partner = partner or self.rnd.choice(self.customers)
-        chosen = []
-        codes = list(self.products)
-        tries = 0
-        while len(chosen) < (n_lines or self.rnd.randint(1, 5)) and tries < 40:
-            tries += 1
-            product = self.products[self.rnd.choice(codes)]
-            if any(p == product for p, _q, _qt in chosen):
-                continue
-            quant = self._pick_quants(product, 1, partner)
-            if not quant:
-                continue
-            avail = quant.quantity - quant.reserved_quantity
-            if product.wms_catch_weight:
-                q = round(min(avail, self.rnd.uniform(2, 25)), 3)
-            else:
-                q = min(int(avail), self.rnd.randint(1, 24))
-            if q <= 0:
-                continue
-            chosen.append((product, q, quant))
-        if not chosen:
-            return self.env["stock.picking"]
-        customer_loc = self.env.ref("stock.stock_location_customers")
-        picking = self._make_picking(
-            self.wh.out_type_id, partner, self.wh.lot_stock_id, customer_loc, [(p, q) for p, q, _qt in chosen],
-            origin=f"95-SKI-SOR-{date:%y%m}{self.rnd.randint(100000, 999999)}",
-            extra={"wms_outbound_type": "so", "wms_shipping_group": self.route[partner.id],
-                   "wms_priority": self.rnd.choice(["Normal", "Normal", "Normal", "High"]),
-                   "scheduled_date": date})
-        for move, (product, q, quant) in zip(picking.move_ids, chosen):
-            move.move_line_ids.unlink()
-            full = abs(q - quant.quantity) < 1e-6
-            self.env["stock.move.line"].create({
-                "move_id": move.id, "picking_id": picking.id, "product_id": product.id,
-                "product_uom_id": product.uom_id.id, "quantity": q, "lot_id": quant.lot_id.id,
-                "package_id": quant.package_id.id, "result_package_id": quant.package_id.id if full else False,
-                "location_id": quant.location_id.id, "location_dest_id": customer_loc.id})
-        if not validate:
+    def _ship(self, lines):
+        head = lines[0]
+        doc = self.env["wms.sync.document"].import_json([self._sor_payload(lines)])
+        picking = doc.picking_id
+        if not picking:
+            _logger.warning("SO %s gagal: %s", head["doc_num"], doc.error)
             return picking
-        picking.move_line_ids.write({"picked": True})
-        picking.with_context(skip_backorder=True).button_validate()
+        customer_loc = self.env.ref("stock.stock_location_customers")
+        for move in picking.move_ids:
+            move.move_line_ids.unlink()
+            need = move.product_uom_qty
+            for quant in self._fefo_quants(move.product_id):
+                if need <= 1e-6:
+                    break
+                take = round(min(need, quant.quantity - quant.reserved_quantity), 3)
+                if take <= 0:
+                    continue
+                self.env["stock.move.line"].create({
+                    "move_id": move.id, "picking_id": picking.id, "product_id": move.product_id.id,
+                    "product_uom_id": move.product_id.uom_id.id, "quantity": take, "lot_id": quant.lot_id.id,
+                    "package_id": quant.package_id.id, "location_id": quant.location_id.id,
+                    "location_dest_id": customer_loc.id, "picked": True})
+                need -= take
+        if not picking.move_line_ids:
+            return self.env["stock.picking"]
+        self._validate(picking)
         picking.wms_stage = "shipped"
-        self._backdate(picking, date)
+        when = datetime.combine(self.day(head["date"]), datetime.min.time()) + timedelta(
+            hours=self.rnd.randint(2, 9), minutes=self.rnd.randint(0, 59))
+        self._backdate(picking, when)
         return picking
 
     def _history(self):
+        """PO Closed diterima dan SO Closed 7 hari terakhir dikirim, urut tanggal (terima dulu, lalu kirim)."""
+        events = [(lines[0]["date"], 0, num, lines) for num, lines in self._docs(self._closed_po()).items()]
+        events += [(lines[0]["date"], 1, num, lines) for num, lines in self._docs(self._closed_so()).items()]
         self.history_out = self.env["stock.picking"]
-        for day in range(30, 0, -1):
-            base = (self.now - timedelta(days=day)).replace(hour=1, minute=0, second=0)
-            if self.rnd.random() < 0.8:
-                zone = self.rnd.choice(["frozen", "frozen", "chilled", "dry", "dry"])
-                self._receipt(base + timedelta(hours=self.rnd.randint(0, 3)), zone)
-            for _i in range(self.rnd.randint(2, 6)):
-                out = self._delivery(base + timedelta(hours=self.rnd.randint(2, 9), minutes=self.rnd.randint(0, 59)))
-                self.history_out |= out
+        for i, (_d, kind, _num, lines) in enumerate(sorted(events)):
+            if kind == 0:
+                self._receive(lines)
+            else:
+                self.history_out |= self._ship(lines)
+            if i % 200 == 0:
+                _logger.info("FoodTrace demo: riwayat %s/%s dokumen", i, len(events))
+        self._reconcile_onhand()
+        self._apply_receive_life()
+        self._apply_customer_shelf_life()
+        self._min_stock()
         # Rekap POD untuk 6 pengiriman terakhir lewat satu loading job yang sudah ditutup.
         last = self.history_out.sorted("date_done")[-6:]
         job = self.env["wms.loading"].create({
-            "vehicle_plate": "DD 8812 KL", "driver": "Rahman", "date": (self.now - timedelta(days=1)).date(),
+            "vehicle_plate": PLATES[0], "driver": DRIVERS[0], "date": (self.now - timedelta(days=1)).date(),
             "state": "close"})
         last.write({"wms_loading_id": job.id})
         last.move_line_ids.write({"wms_loaded": True, "wms_checked": True})
@@ -441,56 +529,85 @@ class Demo:
                                      "remark": "1 karton penyok" if i == 1 else ""} for l in pod.line_ids}
                 pod.submit(self.rnd.choice(["Pak Hendra", "Ibu Sari", "Chef Anto"]), lines)
 
+    def _reconcile_onhand(self):
+        """Samakan stok dengan OnHand SAP 13 Nov.
+
+        Sebagian PO Sep-Okt sudah habis terjual oleh SO sebelum jendela 7 hari yang tidak diputar ulang;
+        selisih itu dikeluarkan lewat penyesuaian stok bertanggal awal jendela, seperti stock opname
+        rekonsiliasi saat go-live.
+        """
+        self.env.invalidate_all()
+        Quant = self.env["stock.quant"].with_context(inventory_mode=True)
+        when = datetime.combine(self.window_start + self.shift, datetime.min.time()) - timedelta(hours=2)
+        adjusted = Quant
+        for code, product in self.products.items():
+            quants = Quant.search([("product_id", "=", product.id), ("location_id.usage", "=", "internal"),
+                                   ("company_id", "=", self.company.id)])
+            excess = round(sum(quants.mapped("quantity")) - float(self.rows[code]["onhand"]), 3)
+            for quant in quants.filtered(lambda q: q.quantity > 0).sorted(lambda q: (q.in_date, q.id)):
+                if excess <= 1e-6:
+                    break
+                take = min(excess, quant.quantity - quant.reserved_quantity)
+                if take <= 0:
+                    continue
+                quant.inventory_quantity = round(quant.quantity - take, 3)
+                adjusted |= quant
+                excess -= take
+        if adjusted:
+            adjusted.with_context(inventory_name="Rekonsiliasi OnHand SAP 13 Nov 2026").action_apply_inventory()
+            self.env.flush_all()
+            self.env.cr.execute(
+                "UPDATE stock_move SET date = %s WHERE reference LIKE %s AND company_id = %s",
+                (when, "Rekonsiliasi OnHand SAP%", self.company.id))
+            self.env.cr.execute(
+                "UPDATE stock_move_line SET date = %s WHERE reference LIKE %s AND company_id = %s",
+                (when, "Rekonsiliasi OnHand SAP%", self.company.id))
+        _logger.info("FoodTrace demo: %s quant disesuaikan ke OnHand SAP", len(adjusted))
+
     # -------------------------------------------------------------- open work
     def _open_work(self):
-        today = self.now.replace(hour=0, minute=0, second=0)
-        # Receiving yang menunggu truk datang hari ini / besok.
-        for zone in ("frozen", "chilled", "dry", "frozen", "dry"):
-            self._receipt(today + timedelta(hours=self.rnd.randint(1, 30)), zone, validate=False)
-        # Outbound hari ini: 3 dokumen dijadikan satu Picking Job (rute 02), 2 sudah di staging dan dicek,
-        # sisanya menunggu.
-        rute02 = self.customers.filtered(lambda c: self.route[c.id] == "RUTE-02")
-        job_docs = self.env["stock.picking"]
-        for partner in rute02[:3]:
-            job_docs |= self._delivery(today + timedelta(hours=2), partner=partner, validate=False, n_lines=3)
-        job_docs = job_docs.filtered(lambda p: p)
+        Sync = self.env["wms.sync.document"]
+        # PO Open: truk belum datang, tampil di Inbound Document "Belum diterima".
+        for lines in self._docs([r for r in self.po if r["status"] == "Open"]).values():
+            Sync.import_json([self._por_payload(lines)])
+        # SO Open: masuk lewat sinkron SAP. Dokumen dengan ItemCode yang belum ada di master WMS gagal
+        # dan menunggu master item dilengkapi (kasus nyata di data SARKUL).
+        docs = Sync.browse()
+        for lines in self._docs([r for r in self.so if r["status"] == "Open"]).values():
+            docs |= Sync.import_json([self._sor_payload(lines)])
+        out = docs.picking_id
+        out.action_assign()
+        today = self.now.date()
+        todays = out.filtered(lambda p: p.state == "assigned" and p.scheduled_date.date() == today)
+        groups = defaultdict(lambda: self.env["stock.picking"])
+        for picking in todays:
+            groups[picking.wms_shipping_group] |= picking
+        ranked = sorted(groups.values(), key=len, reverse=True) + [self.env["stock.picking"]] * 2
+        # Picking Job: kelompok kirim terbanyak hari ini.
+        job_docs = ranked[0][:4]
         if job_docs:
             batch = self.env["stock.picking.batch"].create({
-                "picking_ids": [(6, 0, job_docs.ids)], "description": "RUTE-02", "company_id": self.company.id,
-                "wms_driver": "Iwan", "wms_transporter": "DD 7781 AB"})
+                "picking_ids": [(6, 0, job_docs.ids)], "description": job_docs[0].wms_shipping_group,
+                "company_id": self.company.id, "wms_driver": DRIVERS[3], "wms_transporter": PLATES[1]})
             batch.action_confirm()
             job_docs.write({"wms_stage": "picking"})
             job_docs[:1].move_line_ids.write({"picked": True})
-        ready = self.env["stock.picking"]
-        for partner in self.customers.filtered(lambda c: self.route[c.id] == "RUTE-01"):
-            ready |= self._delivery(today + timedelta(hours=1), partner=partner, validate=False, n_lines=2)
-        ready.move_line_ids.write({"picked": True, "wms_checked": True})
-        ready.write({"wms_stage": "checked", "wms_staging_location_id": self.staging.id})
+        # Sudah dicek di staging dan mulai dimuat: kelompok kirim kedua.
+        ready = ranked[1][:3]
         if ready:
-            self.env["wms.loading"].create({"vehicle_plate": "DD 9034 XY", "driver": "Baso",
+            ready.move_line_ids.write({"picked": True, "wms_checked": True})
+            ready.write({"wms_stage": "checked", "wms_staging_location_id": self.staging.id})
+            self.env["wms.loading"].create({"vehicle_plate": PLATES[2], "driver": DRIVERS[1],
                                             "picking_ids": [(6, 0, ready.ids)]})
             ready[:1].move_line_ids[:1].write({"wms_loaded": True})
             ready[:1].wms_stage = "loading"
-        for _i in range(6):
-            self._delivery(today + timedelta(hours=self.rnd.randint(3, 40)), validate=False)
 
-    # ----------------------------------------------------------- sync & SAP
-    def _sync_documents(self):
-        Sync = self.env["wms.sync.document"]
-        for name in ("POR-261000182.json", "SOR-261030260.json"):
-            Sync.import_json((DATA / "sync" / name).read_text(encoding="utf-8"))
-        broken = json.loads((DATA / "sync" / "SOR-261030260.json").read_text(encoding="utf-8"))
-        broken[0]["number"] = "95-SKI-SOR-261030311"
-        broken[0]["additional_information"][0]["web_trans_no"] = "SOR-261030311"
-        broken[0]["items"] = [dict(broken[0]["items"][0], item_code="XNEW00TEST01",
-                                   item_name="ITEM BARU BELUM ADA DI MASTER WMS", qty=5.0)]
-        Sync.import_json(broken)
-
+    # ----------------------------------------------------------- SAP queue
     def _sap_queue(self):
         docs = self.env["wms.sap.document"].search([("company_id", "=", self.company.id)], order="id")
         for doc in docs:
-            date = doc.picking_id.date_done or self.now
-            self.env.cr.execute("UPDATE wms_sap_document SET create_date = %s WHERE id = %s", (date, doc.id))
+            when = doc.picking_id.date_done or self.now
+            self.env.cr.execute("UPDATE wms_sap_document SET create_date = %s WHERE id = %s", (when, doc.id))
         docs.invalidate_recordset(["create_date"])
         posted = docs[:-7]
         posted.action_post()

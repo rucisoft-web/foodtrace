@@ -804,6 +804,8 @@ SCREENS = {
             ("wms_item_group", "Item group SAP."),
             ("wms_sub_group", "Sub group SAP."),
             ("wms_country", "Negara asal."),
+            ("wms_brand", "Brand dari master SAP (U_Brand), mis. LAI - LAITA."),
+            ("uom_id", "Satuan persediaan, sama dengan satuan SAP (PCE, PCK, JAR, BTL, KG, GRAM, ...). Satuan SAP masing-masing berdiri sendiri, tidak saling dikonversi."),
         ],
     },
     "location": {

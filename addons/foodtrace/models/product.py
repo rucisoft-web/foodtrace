@@ -25,6 +25,7 @@ class ProductTemplate(models.Model):
     wms_item_group = fields.Char("Item group SAP")
     wms_sub_group = fields.Char("Sub group SAP")
     wms_country = fields.Char("Negara asal")
+    wms_brand = fields.Char("Brand SAP", help="U_Brand di master item SAP, mis. LAI - LAITA.")
 
 
 class ProductProduct(models.Model):

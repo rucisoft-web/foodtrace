@@ -18,6 +18,7 @@
                             <field name="wms_item_group"/>
                             <field name="wms_sub_group"/>
                             <field name="wms_country"/>
+                            <field name="wms_brand"/>
                         </group>
                     </group>
                 </page>
@@ -32,6 +33,7 @@
             <field name="name" position="after">
                 <field name="wms_zone" optional="show"/>
                 <field name="wms_item_group" optional="hide"/>
+                <field name="wms_brand" optional="hide"/>
             </field>
         </field>
     </record>
@@ -46,6 +48,14 @@
                 <filter name="wms_dry" string="Dry" domain="[('wms_zone', '=', 'dry')]"/>
                 <filter name="wms_nozone" string="Belum ada zona" domain="[('wms_zone', '=', False), ('is_storable', '=', True)]"/>
                 <separator/>
+            </xpath>
+            <field name="name" position="after">
+                <field name="wms_brand"/>
+                <field name="wms_sub_group"/>
+            </field>
+            <xpath expr="//filter[@name='categ_id']" position="after">
+                <filter name="wms_group_item_group" string="Item group SAP" context="{'group_by': 'wms_item_group'}"/>
+                <filter name="wms_group_brand" string="Brand SAP" context="{'group_by': 'wms_brand'}"/>
             </xpath>
         </field>
     </record>

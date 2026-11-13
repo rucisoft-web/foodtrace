@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+    <!-- Satuan persediaan SAP B1 (OITM.InvntryUom). Satu kategori per satuan supaya PCK tidak pernah
+         terkonversi diam-diam ke PCE: master SAP tidak membawa faktor konversi antarsatuan. -->
+    <record id="uom_categ_sap_pce" model="uom.category">
+        <field name="name">SAP PCE (Piece)</field>
+    </record>
+    <record id="uom_sap_pce" model="uom.uom">
+        <field name="name">PCE</field>
+        <field name="category_id" ref="uom_categ_sap_pce"/>
+        <field name="uom_type">reference</field>
+        <field name="rounding">0.001</field>
+    </record>
+    <record id="uom_categ_sap_pck" model="uom.category">
+        <field name="name">SAP PCK (Pack)</field>
+    </record>
+    <record id="uom_sap_pck" model="uom.uom">
+        <field name="name">PCK</field>
+        <field name="category_id" ref="uom_categ_sap_pck"/>
+        <field name="uom_type">reference</field>
+        <field name="rounding">0.001</field>
+    </record>
+    <record id="uom_categ_sap_pkt" model="uom.category">
+        <field name="name">SAP PKT (Paket)</field>
+    </record>
+    <record id="uom_sap_pkt" model="uom.uom">
+        <field name="name">PKT</field>
+        <field name="category_id" ref="uom_categ_sap_pkt"/>
+        <field name="uom_type">reference</field>
+        <field name="rounding">0.001</field>
+    </record>
+    <record id="uom_categ_sap_jar" model="uom.category">
+        <field name="name">SAP JAR (Jar)</field>
+    </record>
+    <record id="uom_sap_jar" model="uom.uom">
+        <field name="name">JAR</field>
+        <field name="category_id" ref="uom_categ_sap_jar"/>
+        <field name="uom_type">reference</field>
+        <field name="rounding">0.001</field>
+    </record>
+    <record id="uom_categ_sap_btl" model="uom.category">
+        <field name="name">SAP BTL (Botol)</field>
+    </record>
+    <record id="uom_sap_btl" model="uom.uom">
+        <field name="name">BTL</field>
+        <field name="category_id" ref="uom_categ_sap_btl"/>
+        <field name="uom_type">reference</field>
+        <field name="rounding">0.001</field>
+    </record>
+    <record id="uom_categ_sap_ctn" model="uom.category">
+        <field name="name">SAP CTN (Karton)</field>
+    </record>
+    <record id="uom_sap_ctn" model="uom.uom">
+        <field name="name">CTN</field>
+        <field name="category_id" ref="uom_categ_sap_ctn"/>
+        <field name="uom_type">reference</field>
+        <field name="rounding">0.001</field>
+    </record>
+    <record id="uom_categ_sap_can" model="uom.category">
+        <field name="name">SAP CAN (Kaleng)</field>
+    </record>
+    <record id="uom_sap_can" model="uom.uom">
+        <field name="name">CAN</field>
+        <field name="category_id" ref="uom_categ_sap_can"/>
+        <field name="uom_type">reference</field>
+        <field name="rounding">0.001</field>
+    </record>
+    <record id="uom_categ_sap_bag" model="uom.category">
+        <field name="name">SAP BAG (Bag)</field>
+    </record>
+    <record id="uom_sap_bag" model="uom.uom">
+        <field name="name">BAG</field>
+        <field name="category_id" ref="uom_categ_sap_bag"/>
+        <field name="uom_type">reference</field>
+        <field name="rounding">0.001</field>
+    </record>
+    <record id="uom_categ_sap_pail" model="uom.category">
+        <field name="name">SAP PAIL (Pail)</field>
+    </record>
+    <record id="uom_sap_pail" model="uom.uom">
+        <field name="name">PAIL</field>
+        <field name="category_id" ref="uom_categ_sap_pail"/>
+        <field name="uom_type">reference</field>
+        <field name="rounding">0.001</field>
+    </record>
+    <record id="uom_categ_sap_tin" model="uom.category">
+        <field name="name">SAP TIN (Tin)</field>
+    </record>
+    <record id="uom_sap_tin" model="uom.uom">
+        <field name="name">TIN</field>
+        <field name="category_id" ref="uom_categ_sap_tin"/>
+        <field name="uom_type">reference</field>
+        <field name="rounding">0.001</field>
+    </record>
+    <record id="uom_categ_sap_pet" model="uom.category">
+        <field name="name">SAP PET (Pet)</field>
+    </record>
+    <record id="uom_sap_pet" model="uom.uom">
+        <field name="name">PET</field>
+        <field name="category_id" ref="uom_categ_sap_pet"/>
+        <field name="uom_type">reference</field>
+        <field name="rounding">0.001</field>
+    </record>
+    <record id="uom_categ_sap_tube" model="uom.category">
+        <field name="name">SAP TUBE (Tube)</field>
+    </record>
+    <record id="uom_sap_tube" model="uom.uom">
+        <field name="name">TUBE</field>
+        <field name="category_id" ref="uom_categ_sap_tube"/>
+        <field name="uom_type">reference</field>
+        <field name="rounding">0.001</field>
+    </record>
+</odoo>

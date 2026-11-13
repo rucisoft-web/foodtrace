@@ -5,7 +5,8 @@ from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 
 # Satuan di file sinkron SAP yang berarti berat.
-WEIGHT_UOMS = {"KG", "KGS"}
+WEIGHT_UOMS = {"KG": "uom.product_uom_kgm", "KGS": "uom.product_uom_kgm", "GRAM": "uom.product_uom_gram",
+               "GR": "uom.product_uom_gram", "G": "uom.product_uom_gram"}
 
 
 def _sap_date(text):
@@ -109,10 +110,36 @@ class WmsSyncDocument(models.Model):
             })
         return partner
 
+    def _delivery_address(self, partner):
+        """Ship-to SAP (ShipToCode / destination_outlet): satu pelanggan bisa punya banyak outlet tujuan."""
+        outlet = (self.partner_name or "").strip()
+        if self.direction != "outbound" or not partner or not outlet or outlet.upper() == partner.name.upper():
+            return partner
+        Partner = self.env["res.partner"]
+        address = Partner.search([("parent_id", "=", partner.id), ("type", "=", "delivery"),
+                                  ("name", "=ilike", outlet)], limit=1)
+        return address or Partner.create({"name": outlet, "parent_id": partner.id, "type": "delivery"})
+
+    def _sap_uom(self, code, product):
+        """Satuan baris SAP -> satuan Odoo, hanya bila satu kategori dengan satuan item (tanpa konversi palsu)."""
+        code = (code or "").strip().upper()
+        uom = product.uom_id
+        if not code or code == uom.name.upper():
+            return uom
+        xmlid = WEIGHT_UOMS.get(code)
+        found = self.env.ref(xmlid, raise_if_not_found=False) if xmlid else \
+            self.env["uom.uom"].search([("name", "=ilike", code)], limit=1)
+        return found if found and found.category_id == uom.category_id else uom
+
     def _owner(self):
+        """Owner titipan. Owner = perusahaan pemilik gudang itu sendiri berarti stok sendiri (tanpa owner),
+        supaya SO bisa mengambil stok hasil saldo awal / penerimaan biasa."""
         if not self.owner_code:
             return self.env["res.partner"]
-        return self.env["res.partner"].search([("wms_owner_code", "=", self.owner_code)], limit=1)
+        owner = self.env["res.partner"].search([("wms_owner_code", "=", self.owner_code)], limit=1)
+        if owner and owner.commercial_partner_id == self.company_id.partner_id.commercial_partner_id:
+            return self.env["res.partner"]
+        return owner
 
     def action_process(self):
         Product = self.env["product.product"]
@@ -129,7 +156,7 @@ class WmsSyncDocument(models.Model):
                     if not warehouse:
                         raise UserError(_("Gudang %s tidak ditemukan.", doc.warehouse_code))
                     ptype = warehouse.in_type_id if doc.direction == "inbound" else warehouse.out_type_id
-                    partner = doc._partner()
+                    partner = doc._delivery_address(doc._partner())
                     src = ptype.default_location_src_id or self.env.ref("stock.stock_location_suppliers")
                     dst = ptype.default_location_dest_id or self.env.ref("stock.stock_location_customers")
                     if doc.direction == "inbound":
@@ -139,11 +166,7 @@ class WmsSyncDocument(models.Model):
                     moves = []
                     for line in payload["items"]:
                         product = products[line["item_code"]]
-                        uom = product.uom_id
-                        if (line.get("uom_id") or "").upper() in WEIGHT_UOMS:
-                            uom = self.env.ref("uom.product_uom_kgm")
-                            if uom.category_id != product.uom_id.category_id:
-                                uom = product.uom_id
+                        uom = doc._sap_uom(line.get("uom_id"), product)
                         moves.append((0, 0, {
                             "name": line.get("item_name") or product.display_name,
                             "product_id": product.id,
