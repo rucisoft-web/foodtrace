@@ -1,4 +1,4 @@
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
@@ -88,6 +88,7 @@ class StockQuantPackage(models.Model):
     wms_pack_date = fields.Date("Pack date")
     wms_pallet_no = fields.Char("No. palet")
     wms_remark = fields.Char("Remark")
+    wms_packaging = fields.Char("Packaging")
     wms_product_id = fields.Many2one("product.product", "SKU", compute="_compute_wms_content")
     wms_lot_id = fields.Many2one("stock.lot", "Lot", compute="_compute_wms_content")
     wms_qty = fields.Float("Qty", compute="_compute_wms_content")
@@ -98,8 +99,74 @@ class StockQuantPackage(models.Model):
     def _compute_wms_content(self):
         for pack in self:
             quants = pack.quant_ids.filtered(lambda q: q.quantity > 0)
-            pack.wms_product_id = quants.product_id[:1]
-            pack.wms_lot_id = quants.lot_id[:1]
-            pack.wms_qty = sum(quants.mapped("quantity"))
-            pack.wms_expiration_date = quants.lot_id[:1].expiration_date
-            pack.wms_status = quants[:1].wms_status or False
+            if quants:
+                pack.wms_product_id = quants.product_id[:1]
+                pack.wms_lot_id = quants.lot_id[:1]
+                pack.wms_qty = sum(quants.mapped("quantity"))
+                pack.wms_status = quants[:1].wms_status or False
+            else:
+                # LPN baru di receiving belum punya stok: ambil isi dari baris penerimaan yang belum divalidasi.
+                lines = pack._wms_pending_lines()
+                pack.wms_product_id = lines.product_id[:1]
+                pack.wms_lot_id = lines.lot_id[:1]
+                pack.wms_qty = sum(lines.mapped("quantity"))
+                pack.wms_status = "receiving" if lines else False
+            pack.wms_expiration_date = pack.wms_lot_id.expiration_date
+
+    def _wms_pending_lines(self):
+        self.ensure_one()
+        if not self.id:
+            return self.env["stock.move.line"]
+        return self.env["stock.move.line"].search([
+            ("result_package_id", "=", self.id), ("state", "not in", ("done", "cancel"))])
+
+    def _wms_receipt_line(self):
+        """Baris penerimaan yang membuat LPN ini (untuk tanggal terima, container, dock)."""
+        self.ensure_one()
+        if not self.id:
+            return self.env["stock.move.line"]
+        return self.env["stock.move.line"].search([
+            ("result_package_id", "=", self.id), ("picking_id.picking_type_code", "=", "incoming"),
+            ("state", "!=", "cancel")], order="id", limit=1)
+
+    def _wms_label_data(self):
+        """Isi label LPN gaya Largo."""
+        self.ensure_one()
+        ml = self._wms_receipt_line()
+        picking = ml.picking_id
+        lot = self.wms_lot_id
+        rcv = picking.date_done or picking.scheduled_date if picking else self.create_date
+        pack_date = self.wms_pack_date or lot.wms_pack_date
+        cartons = self.env["wms.carton"].search_count([("package_id", "=", self.id)])
+        if not cartons and picking and lot:
+            cartons = self.env["wms.carton"].search_count([
+                ("in_picking_id", "=", picking.id), ("lot_id", "=", lot.id)])
+
+        def day(value):
+            if not value:
+                return "-"
+            if isinstance(value, datetime):
+                value = fields.Datetime.context_timestamp(self, value)
+            return value.strftime("%d-%b-%Y")
+
+        now = fields.Datetime.context_timestamp(self, fields.Datetime.now())
+        return {
+            "code": self.wms_product_id.default_code or "",
+            "name": self.wms_product_id.name or "",
+            "uom": self.wms_product_id.uom_id.name or "",
+            "lot": lot.name or "-",
+            "exp": day(self.wms_expiration_date),
+            "rcv": day(rcv),
+            "pack": day(pack_date),
+            "qty": "%g" % round(self.wms_qty, 3),
+            "cartons": cartons,
+            "est": lot.wms_est or "-",
+            "pallet": self.wms_pallet_no or "-",
+            "container": picking.wms_container_no or "-",
+            "packaging": self.wms_packaging or "-",
+            "grade": lot.wms_grade or "-",
+            "zone": (self.wms_product_id.wms_zone or "").upper(),
+            "printed_by": self.env.user.name,
+            "printed_on": now.strftime("%d/%m/%Y %H:%M:%S"),
+            "stickers": 24,
+        }

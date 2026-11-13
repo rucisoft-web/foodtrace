@@ -116,19 +116,6 @@ class WmsDashboard(models.AbstractModel):
             flow[day][key] += m.product_qty * m.product_id.standard_price
             flow[day][key + "_docs"].add(m.picking_id.id)
 
-        # Suhu 14 hari per zona: min/rata-rata/maks harian (hanya catatan ruang).
-        t_start = (now - timedelta(days=13)).replace(hour=0, minute=0, second=0, microsecond=0)
-        logs = self.env["wms.temperature.log"].search([
-            ("date", ">=", t_start), ("company_id", "=", company.id)])
-        temp = defaultdict(lambda: defaultdict(list))
-        for log in logs.filtered(lambda l: l.source in ("manual", "sensor")):
-            day = fields.Datetime.context_timestamp(self, log.date).date().isoformat()
-            temp[log.zone][day].append(log.temperature)
-        days14 = [(t_start + timedelta(days=i)).date().isoformat() for i in range(14)]
-        alarms = logs.filtered("is_alarm")
-        open_alarms = self.env["wms.temperature.log"].search(
-            [("state", "=", "open"), ("company_id", "=", company.id)], limit=8)
-
         # Pekerjaan hari ini dan status SAP.
         Picking = self.env["stock.picking"]
         open_domain = [("company_id", "=", company.id), ("state", "in", ("confirmed", "waiting", "assigned"))]
@@ -150,19 +137,10 @@ class WmsDashboard(models.AbstractModel):
 
         def zone_row(zone):
             std = standards.get(zone)
-            series = temp.get(zone, {})
             return {
                 "zone": zone,
                 "label": zone_label[zone],
                 "color": std.color if std else "#64748b",
-                "target": std.target_temp if std else None,
-                "alarm": std.alarm_temp if std else None,
-                "min": [round(min(series[d]), 1) if series.get(d) else None for d in days14],
-                "avg": [round(sum(series[d]) / len(series[d]), 1) if series.get(d) else None for d in days14],
-                "max": [round(max(series[d]), 1) if series.get(d) else None for d in days14],
-                "last": round(logs.filtered(lambda l, z=zone: l.zone == z and l.source in ("manual", "sensor"))[:1].temperature, 1)
-                if logs.filtered(lambda l, z=zone: l.zone == z and l.source in ("manual", "sensor")) else None,
-                "alarms": len(alarms.filtered(lambda l, z=zone: l.zone == z)),
                 "value": round(by_zone[zone]["value"]),
                 "items": len(by_zone[zone]["items"]),
                 "lots": len(by_zone[zone]["lots"]),
@@ -186,9 +164,6 @@ class WmsDashboard(models.AbstractModel):
                 "item_low": self.env["product.product"].search_count([("wms_is_low", "=", True)]),
                 "expired_value": round(expired_value),
                 "quarantine": round(quarantine),
-                "alarms_14d": len(alarms),
-                "open_alarms": self.env["wms.temperature.log"].search_count(
-                    [("state", "=", "open"), ("company_id", "=", company.id)]),
                 "receipts_open": Picking.search_count(open_domain + [("picking_type_code", "=", "incoming")]),
                 "deliveries_open": Picking.search_count(open_domain + [("picking_type_code", "=", "outgoing")]),
                 "sap_failed": sap_counts.get("failed", 0),
@@ -214,15 +189,9 @@ class WmsDashboard(models.AbstractModel):
                 "in_docs": [len(v["in_docs"]) for v in flow.values()],
                 "out_docs": [len(v["out_docs"]) for v in flow.values()],
             },
-            "temp_days": days14,
             "status": [{"key": k, "label": label, "value": round(by_status.get(k, 0.0))} for k, label in STOCK_STATUS],
             "item_low": [{"id": p.id, "name": p.name, "code": p.default_code, "qty": round(p.qty_available, 2),
                           "min": p.wms_min_stock, "uom": p.uom_id.name} for p in low],
             "sap": {k: sap_counts.get(k, 0) for k in ("posted", "queued", "failed")},
             "near_expiry": near[:10],
-            "open_alarms": [{
-                "id": a.id, "date": fields.Datetime.to_string(fields.Datetime.context_timestamp(self, a.date)),
-                "zone": a.zone, "temperature": a.temperature, "alarm": a.alarm_temp,
-                "location": a.location_id.name or "", "source": dict(a._fields["source"].selection)[a.source],
-                "picking": a.picking_id.name or ""} for a in open_alarms],
         }

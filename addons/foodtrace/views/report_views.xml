@@ -83,15 +83,15 @@
         <field name="name">Source Master</field>
         <field name="res_model">res.partner</field>
         <field name="view_mode">list,form</field>
-        <field name="domain">[('supplier_rank', '&gt;', 0)]</field>
-        <field name="context">{'default_supplier_rank': 1, 'res_partner_search_mode': 'supplier'}</field>
+        <field name="domain">[('wms_is_source', '=', True)]</field>
+        <field name="context">{'default_wms_is_source': True, 'default_is_company': True}</field>
     </record>
     <record id="action_destination_master" model="ir.actions.act_window">
         <field name="name">Destination Master</field>
         <field name="res_model">res.partner</field>
         <field name="view_mode">list,form</field>
-        <field name="domain">[('customer_rank', '&gt;', 0)]</field>
-        <field name="context">{'default_customer_rank': 1, 'res_partner_search_mode': 'customer'}</field>
+        <field name="domain">[('wms_is_destination', '=', True)]</field>
+        <field name="context">{'default_wms_is_destination': True, 'default_is_company': True}</field>
     </record>
     <!-- Stok per lokasi: isi satu bin/rak/zona. Lokasi per item: di mana saja satu item code berada. -->
     <record id="view_quant_pivot_by_location" model="ir.ui.view">

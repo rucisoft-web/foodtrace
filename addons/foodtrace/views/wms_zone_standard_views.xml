@@ -9,17 +9,13 @@
                 <field name="name"/>
                 <field name="zone"/>
                 <field name="code"/>
-                <field name="target_temp"/>
-                <field name="alarm_temp"/>
-                <field name="max_humidity"/>
-                <field name="max_minutes_outside"/>
                 <field name="shelf_life_days"/>
                 <field name="color" widget="color"/>
             </list>
         </field>
     </record>
     <record id="action_zone_standard" model="ir.actions.act_window">
-        <field name="name">Standar suhu zona</field>
+        <field name="name">Standar zona</field>
         <field name="res_model">wms.zone.standard</field>
         <field name="view_mode">list</field>
     </record>

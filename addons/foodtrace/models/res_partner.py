@@ -10,3 +10,9 @@ class ResPartner(models.Model):
     wms_over_receive_pct = fields.Float(
         "Toleransi over receiving (%)", default=0,
         help="Penerimaan di atas qty PO + toleransi ditolak. Importir boleh diberi toleransi.")
+    wms_is_source = fields.Boolean(
+        "Source (pemasok)", index=True,
+        help="Tampil di Source Master. Terisi otomatis saat partner dipakai di dokumen inbound.")
+    wms_is_destination = fields.Boolean(
+        "Destination (pelanggan)", index=True,
+        help="Tampil di Destination Master. Terisi otomatis saat partner dipakai di dokumen outbound.")

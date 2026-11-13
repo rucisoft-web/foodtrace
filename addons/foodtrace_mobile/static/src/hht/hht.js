@@ -38,9 +38,9 @@ export class WmsHht extends Component {
         this.state = useState({
             screen: "home", home: null, list: [], receipt: null, delivery: null, lpn: null, count: null,
             lookup: null, msg: null, ok: true, busy: false, activeMove: null, activeTask: null,
-            pickLocationOk: false, form: { plate: "", driver: "", note: "", qty: "", weight: "", lot: "", expiry: "" },
-            tempZone: "frozen", counts: {}, lpns: [], jobs: [], check: null, loading: null, ic: null,
-            icRows: {}, pallet: { no: "", mfg: "", remark: "" }, labelUrl: null,
+            pickLocationOk: false, form: { plate: "", driver: "", note: "", qty: "", weight: "", lot: "", expiry: "", dock: "", container: "" },
+            counts: {}, lpns: [], jobs: [], check: null, loading: null, ic: null,
+            icRows: {}, pallet: { no: "", mfg: "", remark: "", packaging: "", grade: "", est: "" }, labelUrl: null,
         });
         onWillStart(() => this.goHome());
     }
@@ -99,6 +99,11 @@ export class WmsHht extends Component {
     // ---------- receiving
     async openReceipt(id, code) {
         this.state.receipt = await this.call("receipt_open", [], { picking_id: id || null, code: code || null });
+        Object.assign(this.state.form, {
+            dock: this.state.receipt.dock_id ? String(this.state.receipt.dock_id) : "",
+            container: this.state.receipt.container || "",
+            plate: this.state.receipt.plate, driver: this.state.receipt.driver, note: this.state.receipt.note,
+        });
         this.state.activeMove = this.state.receipt.lines[0]?.move_id || null;
         this.state.screen = "receipt";
     }
@@ -149,40 +154,15 @@ export class WmsHht extends Component {
         try {
             const res = await this.call("receipt_close_pallet", [this.state.receipt.id, pallet.id], {
                 pallet_no: p.no || null, mfg_date: p.mfg || null, remark: p.remark || null,
+                packaging: p.packaging || null, grade: p.grade || null, est: p.est || null,
             });
             this.state.receipt = res.receipt;
             this.state.labelUrl = res.label_url;
-            Object.assign(p, { no: "", mfg: "", remark: "" });
+            Object.assign(p, { no: "", mfg: "", remark: "", packaging: "", grade: "", est: "" });
             this.feedback(res.message);
         } catch {
             // pesan sudah ditampilkan
         }
-    }
-
-    async logTemp(source, pickingId, value) {
-        if (value === "" || value === undefined) {
-            return;
-        }
-        try {
-            const res = await this.call("log_temperature", [this.state.tempZone, Number(value)], {
-                source, picking_id: pickingId || null,
-            });
-            this.feedback(res.message, !res.alarm);
-            if (this.state.receipt && pickingId === this.state.receipt.id) {
-                this.state.receipt = await this.call("receipt_open", [], { picking_id: pickingId });
-            }
-            if (this.state.delivery && pickingId === this.state.delivery.id) {
-                this.state.delivery = await this.call("delivery_open", [], { picking_id: pickingId });
-            }
-        } catch {
-            // pesan sudah ditampilkan
-        }
-    }
-
-    onTempInput(ev, source, pickingId) {
-        const value = ev.target.value;
-        ev.target.value = "";
-        this.logTemp(source, pickingId, value);
     }
 
     async validateReceipt() {
@@ -190,6 +170,7 @@ export class WmsHht extends Component {
         try {
             const res = await this.call("receipt_validate", [this.state.receipt.id], {
                 plate: f.plate, driver: f.driver, note: f.note,
+                dock_id: Number(f.dock) || null, container: f.container || null,
             });
             this.feedback(res.message);
             this.state.receipt = null;
@@ -434,7 +415,7 @@ export class WmsHht extends Component {
         }
     }
 
-    // ---------- suhu ruang, cek stok
+    // ---------- cek stok
     async scanLookup(code) {
         try {
             this.state.lookup = await this.call("lookup", [code]);

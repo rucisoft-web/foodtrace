@@ -46,11 +46,6 @@
                         <span>Item low</span><strong t-esc="d.kpi.item_low"/>
                         <small>di bawah stok minimum</small>
                     </div>
-                    <div t-attf-class="o_wms_kpi {{ d.kpi.open_alarms ? 'bad' : 'good' }}"
-                         t-on-click="() => this.open('foodtrace.action_temperature_log')">
-                        <span>Alarm suhu 14 hari</span><strong t-esc="d.kpi.alarms_14d"/>
-                        <small><t t-esc="d.kpi.open_alarms"/> belum ditindaklanjuti</small>
-                    </div>
                     <div class="o_wms_kpi" t-on-click="() => this.open('foodtrace.action_receipts_wms')">
                         <span>Pekerjaan terbuka</span>
                         <strong><t t-esc="d.kpi.receipts_open"/> / <t t-esc="d.kpi.deliveries_open"/></strong>
@@ -70,15 +65,8 @@
                             <div class="card-body">
                                 <div class="d-flex justify-content-between align-items-baseline">
                                     <h4 class="mb-0" t-esc="z.label"/>
-                                    <span class="text-muted small">standar <t t-esc="z.target"/> °C · alarm &gt; <t t-esc="z.alarm"/> °C</span>
                                 </div>
                                 <div class="d-flex gap-4 mt-2">
-                                    <div>
-                                        <div class="text-muted small">Suhu terakhir</div>
-                                        <div t-attf-class="fs-3 fw-bold {{ tempClass(z) }}">
-                                            <t t-if="z.last !== null"><t t-esc="z.last"/> °C</t><t t-else="">-</t>
-                                        </div>
-                                    </div>
                                     <div>
                                         <div class="text-muted small">Nilai stok</div>
                                         <div class="fs-5 fw-bold" t-esc="rupiah(z.value, true)"/>
@@ -89,7 +77,7 @@
                                         <div class="progress mt-1" style="height: 8px">
                                             <div class="progress-bar" t-attf-style="width: {{ pct(z) }}%; background: {{ z.color }}"/>
                                         </div>
-                                        <div class="small text-muted mt-1"><t t-esc="z.occupied"/> dari <t t-esc="z.positions"/> posisi · <t t-esc="z.alarms"/> alarm</div>
+                                        <div class="small text-muted mt-1"><t t-esc="z.occupied"/> dari <t t-esc="z.positions"/> posisi</div>
                                     </div>
                                 </div>
                             </div>
@@ -101,10 +89,6 @@
                     <div class="card o_wms_card"><div class="card-body">
                         <h5>Nilai stok per zona</h5>
                         <div class="o_wms_canvas"><canvas t-ref="zoneChart"/></div>
-                    </div></div>
-                    <div class="card o_wms_card span2"><div class="card-body">
-                        <h5>Suhu ruang 14 hari (rata-rata dan maksimum harian)</h5>
-                        <div class="o_wms_canvas"><canvas t-ref="tempChart"/></div>
                     </div></div>
                     <div class="card o_wms_card span2"><div class="card-body">
                         <h5>Profil kedaluwarsa stok (nilai)</h5>
@@ -172,22 +156,6 @@
                                     </tr>
                                 </t>
                                 <tr t-if="!d.near_expiry.length"><td colspan="6" class="text-muted">Tidak ada.</td></tr>
-                            </tbody>
-                        </table>
-                    </div></div>
-                    <div class="card o_wms_card"><div class="card-body">
-                        <h5>Alarm suhu belum ditindaklanjuti</h5>
-                        <table class="table table-sm o_wms_table">
-                            <tbody>
-                                <t t-foreach="d.open_alarms" t-as="a" t-key="a.id">
-                                    <tr>
-                                        <td><span class="o_wms_dot" t-attf-style="background: {{ zoneColor[a.zone] }}"/>
-                                            <t t-esc="zoneLabel[a.zone]"/> · <t t-esc="a.source"/>
-                                            <div class="small text-muted"><t t-esc="a.date"/> <t t-esc="a.location or a.picking"/></div></td>
-                                        <td class="text-end text-danger fw-bold text-nowrap"><t t-esc="a.temperature"/> °C</td>
-                                    </tr>
-                                </t>
-                                <tr t-if="!d.open_alarms.length"><td class="text-muted">Semua alarm sudah ditindaklanjuti.</td></tr>
                             </tbody>
                         </table>
                     </div></div>

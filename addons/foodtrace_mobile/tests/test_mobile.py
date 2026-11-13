@@ -15,15 +15,25 @@ class TestMobile(TestLargoFlows):
         receipt.move_ids.write({"product_uom_qty": 20, "quantity": 0})
         receipt.move_line_ids.unlink()
         move = receipt.move_ids
+        dock = self.env["stock.location"].create({
+            "name": "DOCK_01", "barcode": "DOCK_01", "location_id": self.wh.lot_stock_id.id, "wms_area": "rcv"})
         M.receipt_scan(receipt.id, move.id, qty=12)
-        pallet = M.receipt_open(receipt.id)["pallets"][0]
-        res = M.receipt_close_pallet(receipt.id, pallet["id"], pallet_no="P1")
+        opened = M.receipt_open(receipt.id)
+        self.assertIn({"id": dock.id, "name": "DOCK_01"}, opened["docks"])
+        pallet = opened["pallets"][0]
+        res = M.receipt_close_pallet(receipt.id, pallet["id"], pallet_no="P1", packaging="Karton", grade="A")
         self.assertIn("/report/pdf/foodtrace.report_lpn_label/", res["label_url"])
+        pack = self.env["stock.quant.package"].browse(pallet["id"])
+        self.assertEqual(pack._wms_label_data()["qty"], "12")
+        self.assertEqual(pack._wms_label_data()["packaging"], "Karton")
         M.receipt_scan(receipt.id, move.id, qty=8)
         pallets = M.receipt_open(receipt.id)["pallets"]
         self.assertEqual(len(pallets), 2)
-        M.receipt_validate(receipt.id, plate="DD 1", driver="Ali")
+        with self.assertRaisesRegex(UserError, "Loading dock"):
+            M.receipt_validate(receipt.id, plate="DD 1", driver="Ali")
+        M.receipt_validate(receipt.id, plate="DD 1", driver="Ali", dock_id=dock.id)
         self.assertEqual(receipt.state, "done")
+        self.assertEqual(receipt.wms_dock_id, dock)
         lpns = [p["lpn"] for p in pallets]
         rack2 = self.env["stock.location"].create({"name": "DR-BLK-A02-1-1", "location_id": self.dr.id,
                                                    "wms_area": "blk", "barcode": "SKI-DR-A02"})

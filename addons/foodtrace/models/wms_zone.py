@@ -36,10 +36,10 @@ OUTBOUND_TYPES = [
 
 
 class WmsZoneStandard(models.Model):
-    """Standar suhu per zona yang disetujui QA: suhu target, batas alarm, batas waktu di luar suhu."""
+    """Standar per zona penyimpanan (Frozen, Chilled, Dry): kode lokasi, umur simpan bawaan, warna."""
 
     _name = "wms.zone.standard"
-    _description = "Standar suhu zona"
+    _description = "Standar zona"
     _order = "sequence, id"
     _rec_name = "name"
 
@@ -47,10 +47,6 @@ class WmsZoneStandard(models.Model):
     zone = fields.Selection(ZONES, required=True)
     name = fields.Char(required=True)
     code = fields.Char(required=True, help="Kode zona di kode lokasi, mis. FZ")
-    target_temp = fields.Float("Suhu standar (°C)", required=True)
-    alarm_temp = fields.Float("Alarm bila di atas (°C)", required=True)
-    max_humidity = fields.Float("Alarm kelembapan di atas (%)", help="0 = tidak dipantau")
-    max_minutes_outside = fields.Integer("Batas di luar suhu (menit)", help="0 = tidak dibatasi")
     shelf_life_days = fields.Integer("Umur simpan bawaan (hari)", default=365)
     color = fields.Char(default="#2563eb")
 

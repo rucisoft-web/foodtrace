@@ -41,7 +41,6 @@ export class WmsDashboard extends Component {
             zone: useRef("zoneChart"),
             expiry: useRef("expiryChart"),
             flow: useRef("flowChart"),
-            temp: useRef("tempChart"),
             groups: useRef("groupChart"),
             occupancy: useRef("occupancyChart"),
             sap: useRef("sapChart"),
@@ -144,32 +143,6 @@ export class WmsDashboard extends Component {
             },
         });
 
-        // Suhu: rata-rata harian per zona dingin, garis putus-putus = batas alarm.
-        const cold = d.zones.filter((z) => z.zone !== "dry");
-        const tempSets = [];
-        for (const z of cold) {
-            tempSets.push({
-                label: `${z.label} rata-rata`, data: z.avg, borderColor: z.color, backgroundColor: z.color,
-                tension: 0.3, spanGaps: true, pointRadius: 2,
-            });
-            tempSets.push({
-                label: `${z.label} maks`, data: z.max, borderColor: z.color, borderWidth: 1, pointRadius: 0,
-                borderDash: [2, 2], spanGaps: true,
-            });
-            tempSets.push({
-                label: `Batas alarm ${z.label} (${z.alarm} °C)`, data: d.temp_days.map(() => z.alarm),
-                borderColor: "#dc2626", borderWidth: 1.5, borderDash: [6, 4], pointRadius: 0,
-            });
-        }
-        this.chart(this.refs.temp, {
-            type: "line",
-            data: { labels: d.temp_days.map(shortDay), datasets: tempSets },
-            options: {
-                plugins: { legend: { position: "bottom", labels: { boxWidth: 12 } } },
-                scales: { y: { title: { display: true, text: "°C" } } },
-            },
-        });
-
         const groups = d.groups.slice(0, 10);
         this.chart(this.refs.groups, {
             type: "bar",
@@ -231,13 +204,6 @@ export class WmsDashboard extends Component {
 
     pct(z) {
         return z.positions ? Math.round((z.occupied / z.positions) * 100) : 0;
-    }
-
-    tempClass(z) {
-        if (z.last === null) {
-            return "";
-        }
-        return z.last > z.alarm ? "text-danger" : "text-success";
     }
 
     open(xmlid, extra = {}) {

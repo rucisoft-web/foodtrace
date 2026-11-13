@@ -29,7 +29,7 @@ class WmsPodController(http.Controller):
         note = f'<div class="card {cls}">{escape(message)}</div>' if message else ""
         if pod.state == "done":
             body = head + note + (f'<div class="card ok">Sudah diterima oleh {escape(pod.received_by or "")} '
-                                  f'pada {pod.received_at}, suhu {pod.temperature} °C.</div>')
+                                  f'pada {pod.received_at}.</div>')
         else:
             rows = "".join(
                 f'<tr><td>{escape(l.product_id.display_name)}<br><small>dikirim {l.qty_sent:g} '
@@ -40,9 +40,7 @@ class WmsPodController(http.Controller):
             body = head + note + (
                 f'<form method="post" enctype="multipart/form-data">'
                 f'<input type="hidden" name="csrf_token" value="{request.csrf_token()}">'
-                f'<div class="card"><label>Suhu barang saat diterima (°C) *</label>'
-                f'<input name="temperature" type="number" step="0.1" required>'
-                f'<label>Diterima oleh *</label><input name="received_by" required></div>'
+                f'<div class="card"><label>Diterima oleh *</label><input name="received_by" required></div>'
                 f'<div class="card"><table>{rows}</table></div>'
                 f'<div class="card"><label>Foto bukti terima</label>'
                 f'<input name="photo" type="file" accept="image/*" capture="environment">'
@@ -62,7 +60,7 @@ class WmsPodController(http.Controller):
             photo = post.get("photo")
             data = base64.b64encode(photo.read()) if photo and getattr(photo, "filename", "") else None
             try:
-                pod.submit(post.get("temperature"), post.get("received_by"), lines, photo=data,
+                pod.submit(post.get("received_by"), lines, photo=data,
                            remark=post.get("remark"))
             except UserError as e:
                 return self._render(pod, str(e), "err")

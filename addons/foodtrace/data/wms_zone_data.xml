@@ -6,9 +6,6 @@
         <field name="zone">frozen</field>
         <field name="name">Frozen</field>
         <field name="code">FZ</field>
-        <field name="target_temp">-20</field>
-        <field name="alarm_temp">-17</field>
-        <field name="max_minutes_outside">20</field>
         <field name="shelf_life_days">540</field>
         <field name="color">#2563eb</field>
     </record>
@@ -17,9 +14,6 @@
         <field name="zone">chilled</field>
         <field name="name">Chilled</field>
         <field name="code">CH</field>
-        <field name="target_temp">-4</field>
-        <field name="alarm_temp">-1</field>
-        <field name="max_minutes_outside">30</field>
         <field name="shelf_life_days">180</field>
         <field name="color">#0d9488</field>
     </record>
@@ -28,10 +22,6 @@
         <field name="zone">dry</field>
         <field name="name">Dry</field>
         <field name="code">DR</field>
-        <field name="target_temp">20</field>
-        <field name="alarm_temp">25</field>
-        <field name="max_humidity">70</field>
-        <field name="max_minutes_outside">0</field>
         <field name="shelf_life_days">365</field>
         <field name="color">#d97706</field>
     </record>

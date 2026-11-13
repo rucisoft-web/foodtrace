@@ -34,6 +34,7 @@ class WmsSyncDocument(models.Model):
     owner_code = fields.Char("Owner")
     shipping_group = fields.Char("Shipping group")
     vendor_ref = fields.Char("Ref. vendor / PO pelanggan")
+    container_no = fields.Char("No. container")
     doc_date = fields.Date("Tanggal dokumen")
     delivery_date = fields.Date("Tanggal kirim")
     priority = fields.Char("Prioritas")
@@ -81,7 +82,8 @@ class WmsSyncDocument(models.Model):
             "warehouse_code": doc.get("warehouse"),
             "owner_code": doc.get("owner"),
             "shipping_group": doc.get("shipping_group"),
-            "vendor_ref": info.get("vendor_ref_no"),
+            "vendor_ref": info.get("vendor_ref_no") or info.get("vendor_do_no"),
+            "container_no": info.get("container"),
             "doc_date": _sap_date(doc.get("po_date") or doc.get("date")),
             "delivery_date": _sap_date(doc.get("delivery_date") or doc.get("date")),
             "priority": doc.get("priority"),
@@ -162,6 +164,8 @@ class WmsSyncDocument(models.Model):
                         "wms_sync_id": doc.id,
                         "wms_shipping_group": doc.shipping_group,
                         "wms_priority": doc.priority,
+                        "wms_vendor_ref": doc.vendor_ref,
+                        "wms_container_no": doc.container_no,
                         "wms_inbound_type": doc._map_type("inbound"),
                         "wms_outbound_type": doc._map_type("outbound"),
                         "move_ids": moves,

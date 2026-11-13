@@ -13,10 +13,6 @@ class StockWarehouse(models.Model):
 class StockPicking(models.Model):
     _inherit = "stock.picking"
 
-    wms_temperature_ids = fields.One2many("wms.temperature.log", "picking_id", "Catatan suhu")
-    wms_temp_alarm = fields.Boolean("Ada alarm suhu", compute="_compute_wms_temp", store=True)
-    wms_temp_logged = fields.Boolean("Suhu sudah dicatat", compute="_compute_wms_temp", store=True)
-    wms_needs_temp = fields.Boolean(compute="_compute_wms_needs_temp")
     wms_carton_count = fields.Integer("Karton", compute="_compute_wms_carton_count")
     wms_sap_document_ids = fields.One2many("wms.sap.document", "picking_id", "Posting SAP")
     wms_sap_state = fields.Selection(
@@ -30,21 +26,45 @@ class StockPicking(models.Model):
     wms_vehicle_plate = fields.Char("No. plat kendaraan")
     wms_driver = fields.Char("Nama driver")
     wms_delivery_note = fields.Char("No. surat jalan")
+    wms_dock_id = fields.Many2one(
+        "stock.location", "Loading dock", index=True,
+        domain="[('wms_area', '=', 'rcv'), ('usage', '=', 'internal')]",
+        help="Dock tempat truk dibongkar, mis. DOCK_01. Wajib diisi sebelum validasi penerimaan.")
+    wms_container_no = fields.Char("No. container")
+    wms_vendor_ref = fields.Char("No. referensi / DO vendor")
+    wms_line_count = fields.Integer("Baris", compute="_compute_wms_line_count")
 
-    @api.depends("wms_temperature_ids.is_alarm")
-    def _compute_wms_temp(self):
+    def _compute_wms_line_count(self):
         for picking in self:
-            picking.wms_temp_logged = bool(picking.wms_temperature_ids)
-            picking.wms_temp_alarm = any(picking.wms_temperature_ids.mapped("is_alarm"))
+            picking.wms_line_count = len(picking.move_ids)
 
-    def _wms_cold_zones(self):
+    @api.model_create_multi
+    def create(self, vals_list):
+        pickings = super().create(vals_list)
+        pickings._wms_flag_partners()
+        return pickings
+
+    def write(self, vals):
+        res = super().write(vals)
+        if "partner_id" in vals or "picking_type_id" in vals:
+            self._wms_flag_partners()
+        return res
+
+    def _wms_flag_partners(self):
+        """Partner di dokumen inbound masuk Source Master, di outbound masuk Destination Master."""
+        for code, field in (("incoming", "wms_is_source"), ("outgoing", "wms_is_destination")):
+            partners = self.filtered(lambda p, c=code: p.picking_type_code == c).partner_id.commercial_partner_id
+            partners = partners.filtered(lambda r, f=field: not r[f])
+            if partners:
+                partners.sudo().write({field: True})
+
+    def _wms_docks(self):
         self.ensure_one()
-        return {z for z in self.move_ids.product_id.mapped("wms_zone") if z in ("frozen", "chilled")}
-
-    def _compute_wms_needs_temp(self):
-        for picking in self:
-            picking.wms_needs_temp = (
-                picking.picking_type_code in ("incoming", "outgoing") and bool(picking._wms_cold_zones()))
+        wh = self.picking_type_id.warehouse_id
+        domain = [("wms_area", "=", "rcv"), ("usage", "=", "internal")]
+        if wh:
+            domain.append(("warehouse_id", "=", wh.id))
+        return self.env["stock.location"].search(domain, order="name")
 
     def _compute_wms_carton_count(self):
         Carton = self.env["wms.carton"]
@@ -60,13 +80,12 @@ class StockPicking(models.Model):
     def button_validate(self):
         if not self.env.context.get("wms_skip_checks"):
             for picking in self:
-                if picking.wms_needs_temp and not picking.wms_temp_logged:
-                    raise UserError(_(
-                        "%s berisi barang frozen/chilled. Catat suhu produk dan truk dulu (tombol Catat suhu).",
-                        picking.name))
                 if picking.picking_type_code == "incoming":
+                    if not picking.wms_dock_id and picking._wms_docks():
+                        raise UserError(_("%s: isi Loading dock (mis. DOCK_01) sebelum validasi penerimaan.",
+                                          picking.name))
                     picking._wms_check_over_receiving()
-                    picking._wms_route_to_quarantine(all_cold=picking.wms_temp_alarm)
+                    picking._wms_route_to_quarantine()
         return super().button_validate()
 
     def _wms_check_over_receiving(self):
@@ -79,12 +98,11 @@ class StockPicking(models.Model):
                     "Buat inbound document (PO) terpisah untuk kelebihannya.",
                     item=move.product_id.display_name, qty=move.quantity, po=move.product_uom_qty, tol=tolerance))
 
-    def _wms_route_to_quarantine(self, all_cold=False):
-        """Ke karantina: item ber-auto karantina, dan semua barang dingin bila suhu saat terima menyimpang."""
+    def _wms_route_to_quarantine(self):
+        """Item bertanda auto karantina langsung ke area Karantina & QC zonanya saat diterima."""
         for ml in self.move_line_ids:
             zone = ml.product_id.wms_zone
-            hold = ml.product_id.wms_auto_quarantine or (all_cold and zone in ("frozen", "chilled"))
-            if not zone or not hold:
+            if not zone or not ml.product_id.wms_auto_quarantine:
                 continue
             qc = ml.location_dest_id._wms_qc_location(zone)
             if qc:
@@ -109,22 +127,6 @@ class StockPicking(models.Model):
                             "state": "quarantine" if is_qc else "available",
                         })
         return res
-
-    def action_wms_log_temperature(self):
-        self.ensure_one()
-        zones = sorted(self._wms_cold_zones()) or ["chilled"]
-        return {
-            "type": "ir.actions.act_window",
-            "name": _("Catat suhu"),
-            "res_model": "wms.temperature.log",
-            "view_mode": "form",
-            "target": "new",
-            "context": {
-                "default_picking_id": self.id,
-                "default_zone": zones[0],
-                "default_source": "receipt" if self.picking_type_code == "incoming" else "delivery",
-            },
-        }
 
     def action_wms_tally(self):
         self.ensure_one()

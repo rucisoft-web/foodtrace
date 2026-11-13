@@ -23,15 +23,12 @@ CONCEPTS = [
     },
     {
         "key": "zones",
-        "title": "Zona suhu: Frozen, Chilled, Dry",
+        "title": "Zona penyimpanan: Frozen, Chilled, Dry",
         "body": [
             "Setiap item punya satu zona wajib, dan setiap bin berada di satu zona. Sistem menolak menyimpan item "
             "di bin zona lain, misalnya keju frozen tidak bisa disimpan di rak dry.",
-            "Standar Sarana Kulina: Frozen −20 °C (alarm bila di atas −17 °C, maksimal 20 menit di luar suhu), "
-            "Chilled −4 °C (alarm di atas −1 °C, maksimal 30 menit), Dry 20 °C (alarm di atas 25 °C atau kelembapan "
-            "di atas 70%).",
-            "Barang frozen dan chilled wajib dicatat suhunya saat diterima dan saat dikirim. Bila suhu saat terima "
-            "melewati batas alarm, semua barang dingin di dokumen itu otomatis masuk karantina.",
+            "Pengaturan suhu ruang dijaga oleh sistem pendingin gudang, jadi FoodTrace tidak mencatat suhu. "
+            "Zona dipakai untuk memastikan setiap barang disimpan, diambil, dan dilaporkan di ruang yang benar.",
         ],
     },
     {
@@ -85,8 +82,8 @@ CONCEPTS = [
         "body": [
             "Status stok: Receiving (baru diterima, belum disimpan), Available (siap dijual), Picked (sudah diambil, "
             "menunggu kirim), Hold (karantina, tidak bisa diambil), Damage (rusak/waste).",
-            "Stok masuk Hold karena tiga hal: item ditandai wajib karantina, suhu saat terima menyimpang, atau QA "
-            "menahan LPN secara manual (QC Hold). QA melepas stok lewat QC Release: sebagian bisa dinyatakan GOOD "
+            "Stok masuk Hold karena dua hal: item ditandai wajib karantina, atau QA menahan LPN secara manual "
+            "(QC Hold). QA melepas stok lewat QC Release: sebagian bisa dinyatakan GOOD "
             "(kembali ke rak) dan sebagian DAMAGE.",
         ],
     },
@@ -94,8 +91,8 @@ CONCEPTS = [
         "key": "flow_in",
         "title": "Alur inbound",
         "body": [
-            "1. PO dibuat di SAP dan dikirim ke FoodTrace sebagai dokumen sinkron POR. 2. Truk tiba: operator "
-            "membuka penerimaan di handheld, mencatat suhu produk dan truk. 3. Barang dihitung atau karton discan per "
+            "1. PO dibuat di SAP dan dikirim ke FoodTrace sebagai dokumen sinkron POR, tampil di Inbound Document. "
+            "2. Truk tiba: operator membuka penerimaan di handheld dan memilih Loading dock (mis. DOCK_01). 3. Barang dihitung atau karton discan per "
             "palet, lalu Simpan palet mencetak label LPN. 4. Selesai receiving: kelebihan di atas toleransi ditolak, "
             "barang karantina diarahkan ke area QC. 5. Put away: scan LPN lalu scan bin tujuan. 6. Goods Receipt "
             "terkirim otomatis ke antrean SAP.",
@@ -109,7 +106,7 @@ CONCEPTS = [
             "menjadi Picking Job per rute. 3. Picker mengambil barang sesuai urutan lokasi dan FEFO, lalu meletakkan "
             "di outbound staging (scan lokasi staging). 4. Checker mencocokkan setiap LPN/lot dengan dokumen. "
             "5. Loading Job: barang discan saat dimuat ke truk, manifest dicetak, lalu Close loading membuat Goods "
-            "Issue. 6. Surat jalan dicetak dengan QR POD. 7. Di tujuan, driver mengisi POD: suhu, qty diterima, foto.",
+            "Issue. 6. Surat jalan dicetak dengan QR POD. 7. Di tujuan, driver mengisi POD: penerima, qty diterima, foto.",
         ],
     },
     {
@@ -142,14 +139,15 @@ ROLES = [
         "desc": "Checker penerimaan, forklift/put away, picker, checker outbound, loader. Bekerja dengan handheld "
                 "scanner di lantai gudang.",
         "screens": ["hht.home", "hht.receipts", "hht.receipt", "hht.putaway", "hht.deliveries", "hht.delivery",
-                    "hht.check", "hht.loadings", "hht.loading", "hht.ic", "hht.butcher", "hht.count", "hht.temp",
+                    "hht.check", "hht.loadings", "hht.loading", "hht.ic", "hht.butcher", "hht.count",
                     "hht.lookup", "hht.hold"],
     },
     {
         "key": "inbound",
         "name": "Admin inbound",
-        "desc": "Menyiapkan dan menyelesaikan dokumen penerimaan, tally karton, dan memastikan suhu tercatat.",
-        "screens": ["receipt", "tally", "carton", "temperature_form", "putaway"],
+        "desc": "Memantau Inbound Document dari SAP, menyelesaikan penerimaan per loading dock, tally karton, "
+                "dan mencetak label LPN.",
+        "screens": ["inbound_document", "receipt", "tally", "carton", "putaway"],
     },
     {
         "key": "outbound",
@@ -161,15 +159,15 @@ ROLES = [
     {
         "key": "qa",
         "name": "Kepala gudang / QA",
-        "desc": "Mengawasi suhu dan alarm, karantina dan QC release, menyetujui inventory check, butcher/repack, "
+        "desc": "Mengawasi karantina dan QC release, menyetujui inventory check, butcher/repack, "
                 "dan membaca dashboard serta laporan.",
-        "screens": ["dashboard", "temperature_log", "stock_status", "report_by_location", "report_by_item", "qc_release", "inventory_check", "butcher_out",
+        "screens": ["dashboard", "stock_status", "report_by_location", "report_by_item", "qc_release", "inventory_check", "butcher_out",
                     "butcher_in", "lpn", "reports"],
     },
     {
         "key": "master",
         "name": "Admin master data & SAP",
-        "desc": "Menjaga data item, bin, customer/supplier, format barcode, standar suhu, serta memantau "
+        "desc": "Menjaga data item, bin, customer/supplier, format barcode, standar zona, serta memantau "
                 "sinkron dan posting SAP.",
         "screens": ["product", "location", "partner", "barcode_template", "zone_standard", "warehouse",
                     "sync_document", "sap_document"],
@@ -184,13 +182,13 @@ SCREENS = {
         "steps": [
             "Buka /wms/hht di browser handheld dan login dengan akun operator.",
             "Pilih tugas: Receiving, Put away, Picking, Checker, Loading, Inventory check, Cycle count, Cek stok, "
-            "Butcher out, Suhu ruang, QC hold.",
+            "Butcher out, QC hold.",
             "Tombol rumah di kiri atas selalu kembali ke menu ini.",
         ],
         "fields": [
             ("#Angka pada tombol", "Receiving: penerimaan terbuka. Picking: pengiriman terbuka. Checker: dokumen "
-                                   "di staging menunggu dicek. Loading: loading job terbuka. Suhu ruang: alarm "
-                                   "suhu yang belum ditindaklanjuti. QC hold: jumlah stok yang ditahan."),
+                                   "di staging menunggu dicek. Loading: loading job terbuka. "
+                                   "QC hold: jumlah stok yang ditahan."),
             ("#Pesan hijau / merah", "Muncul di bawah judul setelah setiap scan. Hijau = berhasil, merah = ditolak "
                                      "dengan alasannya. Handheld juga bergetar beda untuk berhasil dan gagal. "
                                      "Ketuk pesan untuk menutupnya."),
@@ -201,7 +199,6 @@ SCREENS = {
         "purpose": "Memilih dokumen penerimaan (PO) yang akan dikerjakan.",
         "steps": [
             "Scan nomor PO di surat jalan supplier, atau ketuk dokumen di daftar.",
-            "Label 'dingin' berarti dokumen berisi barang frozen/chilled dan suhu wajib dicatat.",
         ],
         "fields": [
             ("#Scan nomor PO / dokumen", "Nomor dokumen FoodTrace (SKI/IN/…) atau nomor PO SAP (Source)."),
@@ -210,20 +207,20 @@ SCREENS = {
     },
     "hht.receipt": {
         "title": "Handheld: receiving per palet",
-        "purpose": "Mencatat barang yang benar-benar diterima, per palet, lengkap dengan lot, kedaluwarsa dan suhu.",
+        "purpose": "Mencatat barang yang benar-benar diterima, per palet, lengkap dengan lot, kedaluwarsa dan LPN.",
         "steps": [
-            "Catat suhu: pilih zona lalu ketik suhu produk (°C) dan tekan Enter. Ulangi untuk suhu truk. Bila "
-            "muncul ALARM, barang dingin akan otomatis ke karantina saat selesai.",
+            "Pilih Loading dock tempat truk dibongkar (mis. DOCK_01) dan isi No. container bila ada.",
             "Ketuk item yang sedang dihitung (kartu hijau = item aktif).",
             "Item berat aktual: scan barcode setiap karton. Bila barcode rusak, isi Berat manual lalu tekan + karton.",
             "Item biasa: isi Qty diterima lalu Tambah.",
             "Isi Lot dan tanggal kedaluwarsa bila tidak terbaca dari barcode.",
-            "Setelah satu palet penuh: isi No. palet dan tanggal produksi bila ada, lalu Simpan palet & cetak LPN. "
+            "Setelah satu palet penuh: isi No. palet, tanggal produksi, Packaging, Grade dan EST bila ada, lalu Simpan palet & cetak LPN. "
             "Tempel label LPN di palet. Scan berikutnya otomatis membuka palet baru.",
             "Setelah semua item: isi plat kendaraan, driver dan nomor surat jalan supplier, lalu Selesai receiving.",
         ],
         "fields": [
-            ("#Suhu produk / truk", "Suhu dalam °C, pakai tanda minus untuk suhu beku. Wajib untuk barang dingin."),
+            ("#Loading dock", "Dock bongkar, mis. DOCK_01. Wajib sebelum Selesai receiving."),
+            ("#No. container", "Nomor container impor; ikut tercetak di label LPN."),
             ("#Kartu item", "Kode item, zona, qty diterima / qty PO, dan jumlah karton untuk item berat aktual."),
             ("#Scan barcode karton", "Barcode GS1-128 atau label pemasok. Berat, lot dan kedaluwarsa diambil "
                                      "otomatis. Karton yang sama tidak bisa discan dua kali."),
@@ -231,6 +228,8 @@ SCREENS = {
             ("#Qty diterima", "Jumlah satuan (karton, pak) untuk item tanpa berat aktual."),
             ("#Lot / tanggal kedaluwarsa", "Dari kemasan. Wajib untuk item ber-lot bila tidak ada di barcode."),
             ("#No. palet / tanggal produksi / remark", "Info palet yang ikut tercetak di label LPN."),
+            ("#Packaging / Grade / EST", "Jenis kemasan, grade daging, dan nomor establishment (RPH) dari label "
+                                         "pemasok. Tercetak di label LPN."),
             ("#Plat, driver, surat jalan", "Data kendaraan pemasok, untuk audit dan klaim."),
         ],
         "tips": [
@@ -353,15 +352,6 @@ SCREENS = {
         ],
         "fields": [("#Qty", "Qty fisik dalam satuan item.")],
     },
-    "hht.temp": {
-        "title": "Handheld: suhu ruang",
-        "purpose": "Mencatat suhu ruang frozen, chilled dan dry secara manual (belum ada sensor).",
-        "steps": [
-            "Pilih zona, ketik suhu lalu Enter. Jadwal: minimal setiap 4 jam (06, 10, 14, 18, 22).",
-            "Bila ALARM, laporkan ke kepala gudang: periksa pintu, defrost atau mesin pendingin.",
-        ],
-        "fields": [("#Suhu °C", "Dibaca dari termometer ruang. Pakai minus untuk suhu beku.")],
-    },
     "hht.lookup": {
         "title": "Handheld: cek stok",
         "purpose": "Melihat stok dari satu scan: LPN, bin, item atau lot.",
@@ -373,7 +363,7 @@ SCREENS = {
     },
     "hht.hold": {
         "title": "Handheld: QC hold",
-        "purpose": "Menahan LPN yang dicurigai bermasalah (kemasan rusak, suhu, bau) supaya tidak terambil.",
+        "purpose": "Menahan LPN yang dicurigai bermasalah (kemasan rusak, bau, dll.) supaya tidak terambil.",
         "steps": [
             "Scan LPN. Stok dipindah ke area karantina zonanya dan berstatus Hold.",
             "Pelepasan (QC Release) dilakukan QA di web.",
@@ -381,6 +371,30 @@ SCREENS = {
         "fields": [("#Scan LPN", "Label LPN di palet.")],
     },
     # ------------------------------------------------------------------ inbound
+    "inbound_document": {
+        "title": "Inbound Document (dokumen sumber SAP)",
+        "model": "stock.picking",
+        "purpose": "Daftar semua dokumen inbound dari SAP (POR, mis. 95-SKI-POR-2611515786) dan status "
+                   "penerimaannya. Titik awal admin inbound setiap hari.",
+        "steps": [
+            "Filter Belum diterima tampil otomatis. Pakai Datang hari ini untuk jadwal bongkar.",
+            "Cari dengan nomor POR, nomor referensi vendor, atau nomor container.",
+            "Buka baris untuk masuk ke dokumen receiving-nya.",
+        ],
+        "fields": [
+            ("origin", "Nomor dokumen sumber SAP (POR)."),
+            ("name", "Nomor receiving di FoodTrace."),
+            ("partner_id", "Pemasok (source)."),
+            ("wms_inbound_type", "Jenis inbound dari SAP."),
+            ("wms_vendor_ref", "Nomor referensi / DO vendor."),
+            ("wms_container_no", "Nomor container."),
+            ("wms_dock_id", "Loading dock tempat bongkar."),
+            ("scheduled_date", "Tanggal rencana datang."),
+            ("wms_line_count", "Jumlah baris item."),
+            ("wms_sap_state", "Status posting Goods Receipt ke SAP."),
+            ("state", "Status penerimaan."),
+        ],
+    },
     "receipt": {
         "title": "Receiving (dokumen penerimaan)",
         "model": "stock.picking",
@@ -388,7 +402,7 @@ SCREENS = {
                    "PO SAP (dokumen sinkron POR).",
         "steps": [
             "Buka dokumen berstatus Ready. Cek supplier, PO dan item.",
-            "Catat suhu (tombol Catat suhu) untuk barang frozen/chilled: suhu produk dan suhu truk.",
+            "Isi Loading dock (mis. DOCK_01), No. container dan referensi vendor.",
             "Untuk item berat aktual pakai Tally karton. Untuk item lain isi Quantity per baris, lot dan "
             "kedaluwarsa di detail operasi.",
             "Isi tab WMS: plat kendaraan, driver, nomor surat jalan supplier.",
@@ -403,8 +417,9 @@ SCREENS = {
             ("wms_vehicle_plate", "Plat nomor truk pemasok."),
             ("wms_driver", "Nama pengemudi pemasok."),
             ("wms_delivery_note", "Nomor surat jalan dari supplier."),
-            ("wms_temp_logged", "Tercentang otomatis setelah suhu dicatat."),
-            ("wms_temp_alarm", "Tercentang bila ada suhu di atas batas alarm; barang dingin akan ke karantina."),
+            ("wms_dock_id", "Loading dock tempat truk dibongkar. Wajib sebelum validasi."),
+            ("wms_container_no", "Nomor container (dari SAP atau diisi saat bongkar)."),
+            ("wms_vendor_ref", "Nomor referensi / DO vendor dari SAP."),
             ("wms_sync_id", "Dokumen sinkron SAP asal dokumen ini."),
             ("wms_sap_state", "Status posting Goods Receipt ke SAP."),
         ],
@@ -447,25 +462,6 @@ SCREENS = {
             ("manual_weight", "Tercentang bila berat diisi manual, untuk audit."),
         ],
     },
-    "temperature_form": {
-        "title": "Catat suhu",
-        "model": "wms.temperature.log",
-        "purpose": "Satu catatan suhu: saat terima, di truk, saat kirim, atau suhu ruang.",
-        "steps": ["Pilih zona dan sumber, isi suhu, simpan. Alarm dihitung otomatis dari standar zona."],
-        "fields": [
-            ("date", "Waktu pengukuran."),
-            ("zone", "Zona barang atau ruang yang diukur."),
-            ("source", "Manual (ruang), Saat terima, Truk, Saat kirim, Sensor."),
-            ("temperature", "Suhu °C."),
-            ("humidity", "Kelembapan %, terutama untuk ruang dry."),
-            ("location_id", "Ruang/lokasi yang diukur (untuk suhu ruang)."),
-            ("picking_id", "Dokumen terkait (untuk suhu terima/kirim)."),
-            ("is_alarm", "Otomatis: suhu di atas batas alarm zona."),
-            ("deviation", "Selisih suhu dari batas alarm."),
-            ("state", "Open = alarm belum ditindaklanjuti, Done = sudah."),
-            ("note", "Tindakan yang dilakukan bila alarm."),
-        ],
-    },
     "putaway": {
         "title": "Put Away / Bin Transfer (web)",
         "model": "stock.picking",
@@ -498,7 +494,6 @@ SCREENS = {
             ("wms_staging_location_id", "Lokasi staging tempat barang diletakkan setelah picking."),
             ("wms_loading_id", "Loading job (kendaraan) dokumen ini."),
             ("wms_pod_id", "Bukti terima dari customer."),
-            ("wms_temp_logged", "Suhu saat kirim sudah dicatat (wajib untuk barang dingin)."),
         ],
     },
     "picking_job": {
@@ -557,7 +552,7 @@ SCREENS = {
     "pod": {
         "title": "POD (Proof of Delivery)",
         "model": "wms.pod",
-        "purpose": "Bukti terima dari customer: suhu saat diterima, qty diterima, nama penerima dan foto.",
+        "purpose": "Bukti terima dari customer: qty diterima, nama penerima dan foto.",
         "steps": [
             "POD dibuat otomatis saat Close loading.",
             "Driver mengisi lewat QR di surat jalan. Admin bisa mengisi manual dari surat jalan yang ditandatangani.",
@@ -567,7 +562,6 @@ SCREENS = {
             ("picking_id", "Dokumen pengiriman."),
             ("partner_id", "Customer."),
             ("state", "Dalam perjalanan / Diterima."),
-            ("temperature", "Suhu barang saat diterima customer (wajib)."),
             ("received_by", "Nama penerima di customer."),
             ("received_at", "Waktu terima."),
             ("has_difference", "Ada selisih qty kirim dan terima."),
@@ -580,12 +574,11 @@ SCREENS = {
         "purpose": "Halaman web sederhana yang dibuka driver dari QR surat jalan, tanpa login.",
         "steps": [
             "Scan QR di surat jalan dengan kamera HP.",
-            "Isi suhu barang saat diterima (wajib) dan nama penerima.",
+            "Isi nama penerima (wajib).",
             "Ubah qty bila ada barang ditolak atau kurang, isi catatan.",
             "Ambil foto barang/surat jalan bertanda tangan, lalu Kirim POD.",
         ],
         "fields": [
-            ("#Suhu barang saat diterima", "Diukur di tempat customer, °C."),
             ("#Diterima oleh", "Nama penerima."),
             ("#Qty per item", "Qty yang benar-benar diterima."),
             ("#Foto bukti terima", "Langsung dari kamera HP."),
@@ -602,29 +595,10 @@ SCREENS = {
             ("#Sudah kedaluwarsa", "Diblokir, menunggu proses waste."),
             ("#Hold", "Nilai stok di karantina menunggu QC release."),
             ("#Item low", "Item di bawah stok minimum."),
-            ("#Alarm suhu 14 hari", "Jumlah alarm dan yang belum ditindaklanjuti."),
             ("#SAP B1", "Posting gagal, antrean, dan dokumen sinkron error."),
-            ("#Kartu zona", "Suhu terakhir, nilai stok, okupansi rak dan alarm per zona."),
-            ("#Grafik", "Nilai per zona, tren suhu 14 hari dengan garis alarm, profil kedaluwarsa, okupansi rak, "
+            ("#Kartu zona", "Nilai stok, jumlah item dan lot, serta okupansi rak per zona."),
+            ("#Grafik", "Nilai per zona, profil kedaluwarsa, okupansi rak, "
                         "arus masuk/keluar 30 hari, status stok, posting SAP, nilai per item group."),
-        ],
-    },
-    "temperature_log": {
-        "title": "Log suhu dan alarm",
-        "model": "wms.temperature.log",
-        "purpose": "Riwayat semua pengukuran suhu dan tindak lanjut alarm.",
-        "steps": [
-            "Filter Perlu tindak lanjut setiap pagi.",
-            "Buka alarm, isi Catatan tindakan, lalu Tindak lanjut selesai.",
-            "Grafik menampilkan tren per zona.",
-        ],
-        "fields": [
-            ("zone", "Zona."),
-            ("temperature", "Suhu terukur."),
-            ("alarm_temp", "Batas alarm dari standar zona."),
-            ("is_alarm", "Melewati batas."),
-            ("state", "Open/Done."),
-            ("note", "Tindakan: pintu ditutup, mesin diperiksa, barang dipindah, dll."),
         ],
     },
     "stock_status": {
@@ -854,9 +828,15 @@ SCREENS = {
         "title": "Source & Destination Master (customer/supplier)",
         "model": "res.partner",
         "purpose": "Supplier (source) dan customer (destination) beserta aturan gudangnya.",
-        "steps": ["Kode partner (Reference) harus sama dengan CardCode SAP supaya dokumen sinkron cocok."],
+        "steps": [
+            "Kode partner (Reference) harus sama dengan CardCode SAP supaya dokumen sinkron cocok.",
+            "Partner otomatis masuk Source Master saat dipakai di dokumen inbound, dan Destination Master saat "
+            "dipakai di dokumen outbound. Centang manual untuk partner baru.",
+        ],
         "fields": [
             ("ref", "CardCode SAP."),
+            ("wms_is_source", "Tampil di Source Master (pemasok)."),
+            ("wms_is_destination", "Tampil di Destination Master (pelanggan)."),
             ("wms_min_shelf_life_pct", "Customer: sisa umur minimum barang yang boleh dikirim (%)."),
             ("wms_over_receive_pct", "Supplier: toleransi kelebihan terima di atas PO (%)."),
             ("wms_owner_code", "Kode owner di file sinkron SAP (untuk partner perusahaan sendiri)."),
@@ -884,17 +864,13 @@ SCREENS = {
         ],
     },
     "zone_standard": {
-        "title": "Standar suhu zona",
+        "title": "Standar zona",
         "model": "wms.zone.standard",
-        "purpose": "Batas suhu per zona yang dipakai untuk alarm, dashboard dan karantina otomatis.",
-        "steps": ["Ubah hanya atas persetujuan QA. Perubahan berlaku untuk catatan suhu berikutnya."],
+        "purpose": "Daftar zona penyimpanan (Frozen, Chilled, Dry) dengan kode lokasi, umur simpan bawaan dan warna.",
+        "steps": ["Ubah hanya atas persetujuan kepala gudang."],
         "fields": [
             ("zone", "Frozen, Chilled, Dry."),
             ("code", "Kode zona di nama lokasi (FZ, CH, DR)."),
-            ("target_temp", "Suhu standar."),
-            ("alarm_temp", "Alarm bila suhu di atas nilai ini."),
-            ("max_humidity", "Alarm kelembapan (0 = tidak dipantau)."),
-            ("max_minutes_outside", "Batas waktu barang boleh di luar suhu saat bongkar/muat."),
             ("shelf_life_days", "Umur simpan bawaan untuk item baru di zona ini."),
             ("color", "Warna zona di dashboard dan handheld."),
         ],
@@ -965,7 +941,6 @@ SCREENS = {
 MODEL_SCREENS = {
     "wms.tally.wizard": "tally",
     "wms.carton": "carton",
-    "wms.temperature.log": "temperature_log",
     "wms.loading": "loading",
     "wms.pod": "pod",
     "stock.picking.batch": "picking_job",

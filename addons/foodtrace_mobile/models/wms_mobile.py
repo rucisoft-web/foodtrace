@@ -59,7 +59,6 @@ class WmsMobile(models.AbstractModel):
             "id": p.id, "name": p.name, "origin": p.origin or "", "partner": p.partner_id.display_name or "",
             "date": fields.Date.to_string(p.scheduled_date) if p.scheduled_date else "",
             "state": p.state, "group": p.wms_shipping_group or "", "priority": p.wms_priority or "",
-            "needs_temp": p.wms_needs_temp, "temp_logged": p.wms_temp_logged, "temp_alarm": p.wms_temp_alarm,
             "lines": len(p.move_ids),
         }
 
@@ -75,7 +74,6 @@ class WmsMobile(models.AbstractModel):
             "receipts": Picking.search_count(base + [("picking_type_code", "=", "incoming")]),
             "deliveries": Picking.search_count(base + [("picking_type_code", "=", "outgoing")]),
             "hold": self.env["stock.quant"].search_count([("wms_status", "=", "hold"), ("quantity", ">", 0)]),
-            "alarms": self.env["wms.temperature.log"].search_count([("state", "=", "open")]),
             "jobs": self.env["stock.picking.batch"].search_count([
                 ("state", "=", "in_progress"), ("picking_ids.picking_type_code", "=", "outgoing")]),
             "staged": Picking.search_count([("picking_type_code", "=", "outgoing"), ("wms_stage", "=", "staged")]),
@@ -119,7 +117,10 @@ class WmsMobile(models.AbstractModel):
         head.update({
             "lines": lines, "plate": picking.wms_vehicle_plate or "", "driver": picking.wms_driver or "",
             "note": picking.wms_delivery_note or "",
-            "zones": sorted(picking._wms_cold_zones()),
+            "docks": [{"id": d.id, "name": d.barcode or d.name} for d in picking._wms_docks()],
+            "dock_id": picking.wms_dock_id.id or False,
+            "container": picking.wms_container_no or "",
+            "vendor_ref": picking.wms_vendor_ref or "",
             "pallets": [{
                 "lpn": ml.result_package_id.name, "id": ml.result_package_id.id, "product": ml.product_id.display_name,
                 "lot": ml.lot_id.name or "", "qty": round(ml.quantity, 3), "uom": ml.product_uom_id.name,
@@ -129,14 +130,20 @@ class WmsMobile(models.AbstractModel):
         return head
 
     @api.model
-    def receipt_close_pallet(self, picking_id, package_id, pallet_no=None, mfg_date=None, remark=None):
+    def receipt_close_pallet(self, picking_id, package_id, pallet_no=None, mfg_date=None, remark=None,
+                             packaging=None, grade=None, est=None):
         """'Simpan palet': tutup LPN (scan berikutnya membuka LPN baru) dan kembalikan URL label."""
         picking = self.env["stock.picking"].browse(picking_id)
         pack = picking.move_line_ids.result_package_id.filtered(lambda p: p.id == package_id)
         if not pack:
             raise UserError(_("LPN bukan bagian dokumen ini."))
         pack.write({"wms_closed": True, "wms_pallet_no": pallet_no or False, "wms_remark": remark or False,
-                    "wms_mfg_date": mfg_date or False, "wms_pack_date": fields.Date.context_today(self)})
+                    "wms_mfg_date": mfg_date or False, "wms_pack_date": fields.Date.context_today(self),
+                    "wms_packaging": packaging or False})
+        lots = picking.move_line_ids.filtered(lambda m: m.result_package_id == pack).lot_id
+        lot_vals = {k: v for k, v in (("wms_grade", grade), ("wms_est", est)) if v}
+        if lots and lot_vals:
+            lots.write(lot_vals)
         return {"message": _("Palet %s disimpan. Tempel label lalu lanjut palet berikutnya.", pack.name),
                 "label_url": f"/report/pdf/foodtrace.report_lpn_label/{pack.id}",
                 "receipt": self.receipt_open(picking.id)}
@@ -203,20 +210,14 @@ class WmsMobile(models.AbstractModel):
         return {"message": msg, "receipt": self.receipt_open(picking.id)}
 
     @api.model
-    def log_temperature(self, zone, temperature, source="manual", picking_id=None, location_code=None, humidity=0.0):
-        vals = {"zone": zone, "temperature": float(temperature), "source": source, "humidity": float(humidity or 0)}
-        if picking_id:
-            vals["picking_id"] = picking_id
-        if location_code:
-            vals["location_id"] = self._find_location(location_code).id
-        log = self.env["wms.temperature.log"].create(vals)
-        return {"alarm": log.is_alarm, "message": _("%(z)s %(t)s °C %(s)s", z=ZONE_LABEL.get(zone, zone),
-                                                     t=log.temperature, s=_("ALARM") if log.is_alarm else _("OK"))}
-
-    @api.model
-    def receipt_validate(self, picking_id, plate=None, driver=None, note=None):
+    def receipt_validate(self, picking_id, plate=None, driver=None, note=None, dock_id=None, container=None):
         picking = self.env["stock.picking"].browse(picking_id)
-        picking.write({"wms_vehicle_plate": plate, "wms_driver": driver, "wms_delivery_note": note})
+        vals = {"wms_vehicle_plate": plate, "wms_driver": driver, "wms_delivery_note": note}
+        if dock_id:
+            vals["wms_dock_id"] = dock_id
+        if container:
+            vals["wms_container_no"] = container
+        picking.write(vals)
         # Kurang terima = backorder otomatis (partial receiving).
         res = picking.with_context(skip_backorder=True).button_validate()
         if isinstance(res, dict) and res.get("res_model"):
@@ -332,15 +333,11 @@ class WmsMobile(models.AbstractModel):
                 "picked": ml.picked, "catch_weight": ml.product_id.wms_catch_weight,
             })
         head = self._picking_head(picking)
-        zones = set()
-        for p in pickings:
-            zones |= p._wms_cold_zones()
         head.update({
             "batch_id": batch.id or False, "batch": batch.name or "", "picking_ids": pickings.ids,
             "docs": [p.name for p in pickings], "tasks": tasks,
             "short": [{"product": m.product_id.display_name, "missing": round(m.product_uom_qty - m.quantity, 3),
                        "uom": m.product_uom.name} for m in pickings.move_ids if m.quantity < m.product_uom_qty - 1e-6],
-            "zones": sorted(zones),
         })
         if batch:
             head["name"] = batch.name

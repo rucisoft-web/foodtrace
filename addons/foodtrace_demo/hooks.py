@@ -23,8 +23,6 @@ ZONE_NAME = {"frozen": "Frozen", "chilled": "Chilled", "dry": "Dry"}
 # Rak palet (baris × bay × level) per zona.
 RACKS = {"frozen": (6, 6, 4), "chilled": (6, 8, 4), "dry": (8, 8, 4)}
 SHELF_LIFE = {"frozen": 540, "chilled": 120, "dry": 365}
-ROOM_TEMP = {"frozen": (-20.0, 1.0), "chilled": (-4.0, 0.9), "dry": (21.0, 1.5)}
-ALARM_TEMP = {"frozen": -14.5, "chilled": 1.5, "dry": 27.0}
 
 CUSTOMERS = [
     ("C-HTL001", "Hotel Nusantara Indah", "RUTE-01", 60),
@@ -70,7 +68,6 @@ class Demo:
         self._products()
         self._opening_stock()
         self._history()
-        self._room_temperatures()
         self._open_work()
         self._sync_documents()
         self._sap_queue()
@@ -140,7 +137,8 @@ class Demo:
                                         "barcode": f"SKI-{code}-QC"})
             self.dmg[zone] = Loc.create({"name": "DMG", "location_id": room.id, "wms_area": "dmg", "wms_zone": zone,
                                          "barcode": f"SKI-{code}-DMG"})
-        self.rcv = Loc.create({"name": "RCV-DOCK", "location_id": stock.id, "wms_area": "rcv", "barcode": "SKI-RCV"})
+        self.docks = Loc.create([{"name": f"DOCK_{n:02d}", "location_id": stock.id, "wms_area": "rcv",
+                                  "barcode": f"DOCK_{n:02d}"} for n in (1, 2, 3)])
         self.staging = Loc.create({"name": "OUT-STAGING", "location_id": stock.id, "wms_area": "out",
                                    "barcode": "SKI-OUT"})
         Loc.create({"name": "RTN", "location_id": stock.id, "wms_area": "rtn", "barcode": "SKI-RTN"})
@@ -171,11 +169,12 @@ class Demo:
                 "name": name, "ref": ref, "city": "Makassar", "is_company": True,
                 "wms_min_shelf_life_pct": life})
             self.customers |= partner
+            partner.wms_is_destination = True
             self.route[partner.id] = group
         self.suppliers = Partner
         for ref, name, tol in SUPPLIERS:
             self.suppliers |= Partner.create({"name": name, "ref": ref, "is_company": True,
-                                              "wms_over_receive_pct": tol})
+                                              "wms_over_receive_pct": tol, "wms_is_source": True})
 
     # --------------------------------------------------------------- products
     def _products(self):
@@ -298,11 +297,6 @@ class Demo:
             product.product_tmpl_id.wms_min_stock = round(qty * self.rnd.uniform(0.1, 0.4))
 
     # ---------------------------------------------------------------- history
-    def _temp_log(self, picking, zone, temp, date, source):
-        return self.env["wms.temperature.log"].create({
-            "picking_id": picking.id, "zone": zone, "temperature": temp, "source": source, "date": date,
-            "state": "done"})
-
     def _backdate(self, picking, date):
         cr = self.env.cr
         cr.execute("UPDATE stock_picking SET date_done = %s, scheduled_date = %s, date = %s, date_deadline = NULL "
@@ -329,7 +323,7 @@ class Demo:
         picking.action_confirm()
         return picking
 
-    def _receipt(self, date, zone, alarm=False, validate=True):
+    def _receipt(self, date, zone, validate=True):
         supplier = self.rnd.choice(self.suppliers)
         candidates = [p for p in self.products.values() if p.wms_zone == zone]
         lines = []
@@ -340,7 +334,10 @@ class Demo:
         picking = self._make_picking(
             self.wh.in_type_id, supplier, supplier_loc, self.rooms[zone], lines,
             origin=f"95-SKI-POR-{date:%y%m}{self.rnd.randint(100000, 999999)}",
-            extra={"wms_inbound_type": "po", "wms_vehicle_plate": f"DD {self.rnd.randint(1000, 9999)} "
+            extra={"wms_inbound_type": "po", "wms_dock_id": self.rnd.choice(self.docks).id if validate else False,
+                   "wms_container_no": f"{self.rnd.choice(['MSKU', 'TGHU', 'CMAU'])}{self.rnd.randint(1000000, 9999999)}"
+                   if zone != "dry" else False,
+                   "wms_vendor_ref": f"INV/{self.rnd.randint(1000, 9999)}/{date:%y}", "wms_vehicle_plate": f"DD {self.rnd.randint(1000, 9999)} "
                    f"{self.rnd.choice(['AB', 'XY', 'KL', 'MN'])}", "wms_driver": self.rnd.choice(
                        ["Andi", "Baso", "Rahman", "Iwan", "Sulaiman", "Yusuf"]),
                    "wms_delivery_note": f"SJ-{self.rnd.randint(10000, 99999)}"})
@@ -358,14 +355,8 @@ class Demo:
                 "product_uom_id": move.product_uom.id, "quantity": move.product_uom_qty, "lot_id": lot.id,
                 "location_id": supplier_loc.id, "location_dest_id": self._next_bin(zone).id,
                 "result_package_id": pack.id, "picked": True})
-        if zone != "dry":
-            mean, sd = ROOM_TEMP[zone]
-            temp = ALARM_TEMP[zone] + 1.5 if alarm else round(self.rnd.gauss(mean + 1.0, sd), 1)
-            self._temp_log(picking, zone, temp, date, "receipt")
-            self._temp_log(picking, zone, round(self.rnd.gauss(mean, sd), 1), date, "truck")
         picking.with_context(skip_backorder=True).button_validate()
         self._backdate(picking, date)
-        picking.wms_temperature_ids.write({"date": date})
         return picking
 
     def _pick_quants(self, product, qty, partner):
@@ -420,23 +411,16 @@ class Demo:
         if not validate:
             return picking
         picking.move_line_ids.write({"picked": True})
-        zones = picking._wms_cold_zones()
-        for zone in zones:
-            self._temp_log(picking, zone, round(self.rnd.gauss(ROOM_TEMP[zone][0] + 0.8, 0.8), 1), date, "delivery")
         picking.with_context(skip_backorder=True).button_validate()
         picking.wms_stage = "shipped"
         self._backdate(picking, date)
-        picking.wms_temperature_ids.write({"date": date})
         return picking
 
     def _history(self):
         self.history_out = self.env["stock.picking"]
-        alarm_day = 6
         for day in range(30, 0, -1):
             base = (self.now - timedelta(days=day)).replace(hour=1, minute=0, second=0)
-            if day == alarm_day:
-                self._receipt(base + timedelta(hours=2), "frozen", alarm=True)
-            elif self.rnd.random() < 0.8:
+            if self.rnd.random() < 0.8:
                 zone = self.rnd.choice(["frozen", "frozen", "chilled", "dry", "dry"])
                 self._receipt(base + timedelta(hours=self.rnd.randint(0, 3)), zone)
             for _i in range(self.rnd.randint(2, 6)):
@@ -455,39 +439,7 @@ class Demo:
             if i < 4:
                 lines = {str(l.id): {"qty": l.qty_sent - (1 if i == 1 and l.qty_sent > 1 else 0),
                                      "remark": "1 karton penyok" if i == 1 else ""} for l in pod.line_ids}
-                zones = picking._wms_cold_zones()
-                temp = ROOM_TEMP["frozen"][0] + 3 if "frozen" in zones else 5.0
-                pod.submit(round(temp, 1), self.rnd.choice(["Pak Hendra", "Ibu Sari", "Chef Anto"]), lines)
-
-    # ------------------------------------------------------------ temperature
-    def _room_temperatures(self):
-        Log = self.env["wms.temperature.log"]
-        vals = []
-        for day in range(13, -1, -1):
-            for hour in (6, 10, 14, 18, 22):
-                when = (self.now - timedelta(days=day)).replace(hour=hour - 8 if hour >= 8 else hour + 16,
-                                                                 minute=self.rnd.randint(0, 20), second=0)
-                if when > self.now:
-                    continue
-                for zone in ("frozen", "chilled", "dry"):
-                    mean, sd = ROOM_TEMP[zone]
-                    temp = self.rnd.gauss(mean, sd)
-                    # Ekskursi: pintu freezer terbuka lama / defrost, dan siang panas di gudang dry.
-                    if zone == "frozen" and (day, hour) in ((9, 14), (2, 10)):
-                        temp = -15.2
-                    if zone == "chilled" and (day, hour) in ((5, 18), (0, 6)):
-                        temp = 0.4
-                    if zone == "dry" and hour == 14 and day in (11, 4, 1):
-                        temp = 26.1
-                    humidity = round(self.rnd.uniform(55, 68), 1) if zone == "dry" else 0.0
-                    if zone == "dry" and day == 3 and hour == 10:
-                        humidity = 73.5
-                    vals.append({"zone": zone, "location_id": self.rooms[zone].id, "temperature": round(temp, 1),
-                                 "humidity": humidity, "source": "manual", "date": when})
-        logs = Log.create(vals)
-        # Alarm lama sudah ditindaklanjuti; 2 hari terakhir masih terbuka.
-        for log in logs.filtered(lambda l: l.is_alarm and l.date < self.now - timedelta(days=2)):
-            log.write({"state": "done", "note": "Ditindaklanjuti: pintu ditutup, suhu normal kembali"})
+                pod.submit(self.rnd.choice(["Pak Hendra", "Ibu Sari", "Chef Anto"]), lines)
 
     # -------------------------------------------------------------- open work
     def _open_work(self):

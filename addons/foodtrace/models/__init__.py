@@ -2,7 +2,6 @@ from . import wms_zone
 from . import product
 from . import stock_location
 from . import res_partner
-from . import wms_temperature_log
 from . import wms_barcode_template
 from . import wms_carton
 from . import wms_sap_document

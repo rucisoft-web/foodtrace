@@ -13,7 +13,6 @@
         "data/ir_cron.xml",
         "data/ir_sequence.xml",
         "views/wms_zone_standard_views.xml",
-        "views/wms_temperature_log_views.xml",
         "views/wms_carton_views.xml",
         "views/wms_barcode_template_views.xml",
         "views/wms_sap_document_views.xml",

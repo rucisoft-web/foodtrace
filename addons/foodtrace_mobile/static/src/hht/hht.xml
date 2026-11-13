@@ -28,7 +28,6 @@
                     <t t-elif="state.screen === 'ic'">Inventory check</t>
                     <t t-elif="state.screen === 'butcher'">Butcher out</t>
                     <t t-elif="state.screen === 'count'">Cycle count (buta)</t>
-                    <t t-elif="state.screen === 'temp'">Suhu ruang</t>
                     <t t-elif="state.screen === 'lookup'">Cek stok</t>
                     <t t-elif="state.screen === 'hold'">QC hold</t>
                 </div>
@@ -90,10 +89,6 @@
                     </div>
                     <div class="o_hht_group">QA</div>
                     <div class="o_hht_tiles">
-                        <button class="o_tile o_qa" t-on-click="() => this.open('temp')">
-                            <i class="fa fa-thermometer-half"/><span>Suhu ruang</span>
-                            <b t-if="state.home?.alarms" class="o_alarm" t-esc="state.home.alarms"/>
-                        </button>
                         <button class="o_tile o_qa" t-on-click="() => this.open('hold')">
                             <i class="fa fa-ban"/><span>QC hold</span>
                             <b t-if="state.home?.hold" t-esc="state.home.hold"/>
@@ -108,27 +103,21 @@
                     <button t-foreach="state.list" t-as="p" t-key="p.id" class="o_hht_card" t-on-click="() => this.openReceipt(p.id)">
                         <div class="o_row"><b t-esc="p.name"/><span class="o_badge" t-esc="p.date"/></div>
                         <div t-esc="p.partner"/>
-                        <div class="o_muted"><t t-esc="p.origin"/> · <t t-esc="p.lines"/> item
-                            <span t-if="p.needs_temp" class="o_badge o_cold">dingin</span></div>
+                        <div class="o_muted"><t t-esc="p.origin"/> · <t t-esc="p.lines"/> item</div>
                     </button>
                 </t>
 
                 <!-- RECEIPT -->
                 <t t-elif="state.screen === 'receipt' and state.receipt">
                     <t t-set="r" t-value="state.receipt"/>
-                    <div class="o_hht_box" t-if="r.needs_temp">
-                        <div class="o_row">
-                            <b>Suhu produk / truk</b>
-                            <span t-if="r.temp_logged" t-att-class="'o_badge ' + (r.temp_alarm ? 'o_bad' : 'o_good')"
-                                  t-esc="r.temp_alarm ? 'ALARM → karantina' : 'OK'"/>
-                        </div>
-                        <div class="o_row">
-                            <select t-model="state.tempZone">
-                                <option t-foreach="r.zones" t-as="z" t-key="z" t-att-value="z" t-esc="zone[z]"/>
-                            </select>
-                            <input type="number" step="0.1" placeholder="°C" inputmode="decimal"
-                                   t-on-change="(ev) => this.onTempInput(ev, 'receipt', r.id)"/>
-                        </div>
+                    <div class="o_hht_box">
+                        <div class="o_row"><b>Loading dock</b>
+                            <span class="o_small" t-if="r.vendor_ref">Ref <t t-esc="r.vendor_ref"/></span></div>
+                        <select t-model="state.form.dock">
+                            <option value="">Pilih dock</option>
+                            <option t-foreach="r.docks" t-as="d" t-key="d.id" t-att-value="d.id" t-esc="d.name"/>
+                        </select>
+                        <input placeholder="No. container" t-model="state.form.container"/>
                     </div>
                     <div class="o_hht_lines">
                         <button t-foreach="r.lines" t-as="l" t-key="l.move_id" class="o_hht_line"
@@ -167,7 +156,14 @@
                             <input placeholder="No. palet" t-model="state.pallet.no"/>
                             <input type="date" t-model="state.pallet.mfg" title="Tanggal produksi"/>
                         </div>
-                        <input placeholder="Remark" t-model="state.pallet.remark"/>
+                        <div class="o_row">
+                            <input placeholder="Packaging" t-model="state.pallet.packaging"/>
+                            <input placeholder="Grade" t-model="state.pallet.grade"/>
+                        </div>
+                        <div class="o_row">
+                            <input placeholder="EST / RPH" t-model="state.pallet.est"/>
+                            <input placeholder="Remark" t-model="state.pallet.remark"/>
+                        </div>
                         <button class="o_btn o_primary o_wide" t-on-click="() => this.closePallet()">
                             <i class="fa fa-save"/> Simpan palet &amp; cetak LPN
                         </button>
@@ -344,17 +340,6 @@
                         </div>
                         <button class="o_btn o_primary o_wide" t-on-click="() => this.submitCount()">Simpan hitungan</button>
                     </t>
-                </t>
-
-                <!-- TEMP -->
-                <t t-elif="state.screen === 'temp'">
-                    <div class="o_hht_zones">
-                        <button t-foreach="['frozen', 'chilled', 'dry']" t-as="z" t-key="z"
-                                t-att-class="'o_zone_btn o_' + z + (state.tempZone === z ? ' o_active' : '')"
-                                t-on-click="() => (this.state.tempZone = z)" t-esc="zone[z]"/>
-                    </div>
-                    <input class="o_big" type="number" step="0.1" placeholder="Suhu °C" inputmode="decimal"
-                           t-on-change="(ev) => this.onTempInput(ev, 'manual', null)"/>
                 </t>
 
                 <!-- LOOKUP -->

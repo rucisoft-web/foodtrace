@@ -77,6 +77,7 @@
                 <field name="wms_expiration_date"/>
                 <field name="location_id"/>
                 <field name="wms_pallet_no" optional="show"/>
+                <field name="wms_packaging" optional="hide"/>
                 <field name="wms_pack_date" optional="hide"/>
                 <field name="wms_status" widget="badge"/>
             </list>
@@ -95,6 +96,7 @@
                     <field name="wms_mfg_date"/>
                     <field name="wms_pack_date"/>
                     <field name="wms_pallet_no"/>
+                    <field name="wms_packaging"/>
                     <field name="wms_remark"/>
                 </group>
             </xpath>
@@ -143,5 +145,18 @@
         <field name="view_ids" eval="[(5, 0, 0), (0, 0, {'view_mode': 'list', 'view_id': ref('view_quant_list_wms')})]"/>
         <field name="domain">[('location_id.usage', '=', 'internal'), ('quantity', '>', 0), ('wms_expiration_date', '!=', False)]</field>
         <field name="context">{'search_default_exp_3m': 1}</field>
+    </record>
+    <record id="view_lot_form_wms" model="ir.ui.view">
+        <field name="name">stock.lot.form.wms</field>
+        <field name="model">stock.lot</field>
+        <field name="inherit_id" ref="stock.view_production_lot_form"/>
+        <field name="arch" type="xml">
+            <field name="ref" position="after">
+                <field name="wms_grade"/>
+                <field name="wms_brand"/>
+                <field name="wms_est"/>
+                <field name="wms_pack_date"/>
+            </field>
+        </field>
     </record>
 </odoo>

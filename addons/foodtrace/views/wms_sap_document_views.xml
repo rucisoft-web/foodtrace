@@ -119,6 +119,7 @@
                             <field name="doc_entry"/>
                             <field name="web_trans_no"/>
                             <field name="vendor_ref"/>
+                            <field name="container_no"/>
                         </group>
                         <group>
                             <field name="partner_code"/>

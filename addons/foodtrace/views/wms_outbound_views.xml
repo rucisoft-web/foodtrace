@@ -174,7 +174,6 @@
                 <field name="loading_id"/>
                 <field name="received_at"/>
                 <field name="received_by"/>
-                <field name="temperature"/>
                 <field name="has_difference"/>
                 <field name="state" widget="badge"/>
             </list>
@@ -198,8 +197,7 @@
                         <group>
                             <field name="received_at"/>
                             <field name="received_by"/>
-                            <field name="temperature"/>
-                            <field name="has_difference"/>
+                                        <field name="has_difference"/>
                         </group>
                     </group>
                     <field name="line_ids">

@@ -8,6 +8,9 @@
             <xpath expr="//notebook" position="inside">
                 <page string="FoodTrace" name="wms">
                     <group>
+                        <field name="wms_is_source"/>
+                        <field name="wms_is_destination"/>
+                        <field name="wms_over_receive_pct" invisible="not wms_is_source"/>
                         <field name="wms_min_shelf_life_pct"/>
                         <field name="wms_owner_code"/>
                     </group>

@@ -57,7 +57,6 @@ class TestLargoFlows(TestWms):
     def test_auto_quarantine_and_qc_release_split(self):
         self.fries.wms_auto_quarantine = True
         picking = self._receipt(self.fries, 20, self.fz_rack)
-        picking.wms_temperature_ids = [(0, 0, {"zone": "frozen", "temperature": -20, "source": "receipt"})]
         picking.button_validate()
         quant = self.env["stock.quant"].search([("product_id", "=", self.fries.id), ("location_id", "=", self.fz_qc.id)])
         self.assertEqual(quant.wms_status, "hold")
@@ -104,9 +103,9 @@ class TestLargoFlows(TestWms):
         self.assertEqual(set((out1 | out2).mapped("state")), {"done"})
         pod = out1.wms_pod_id
         self.assertTrue(pod.get_url().endswith(pod.token))
-        with self.assertRaisesRegex(UserError, "Suhu"):
-            pod.submit("", "Andi", {})
-        pod.submit("4.5", "Andi", {str(pod.line_ids.id): {"qty": 9, "remark": "1 penyok"}})
+        with self.assertRaisesRegex(UserError, "penerima"):
+            pod.submit("", {})
+        pod.submit("Andi", {str(pod.line_ids.id): {"qty": 9, "remark": "1 penyok"}})
         self.assertTrue(pod.has_difference)
         self.assertEqual(out1.wms_stage, "delivered")
         self.env.ref("foodtrace.action_report_manifest")._render_qweb_html(

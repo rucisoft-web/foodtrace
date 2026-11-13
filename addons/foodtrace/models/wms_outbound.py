@@ -22,6 +22,7 @@ class StockLot(models.Model):
     wms_cutting_type = fields.Char("Cutting type")
     wms_pack_date = fields.Date("Pack date")
     wms_mfg_date = fields.Date("Tanggal produksi")
+    wms_est = fields.Char("EST / RPH", help="Nomor establishment / rumah potong di label pemasok, mis. ME 21")
 
 
 class StockPickingBatch(models.Model):
@@ -182,7 +183,6 @@ class WmsPod(models.Model):
     loading_id = fields.Many2one(related="picking_id.wms_loading_id")
     token = fields.Char(required=True, copy=False, default=lambda self: uuid.uuid4().hex, index=True)
     state = fields.Selection([("open", "Dalam perjalanan"), ("done", "Diterima")], default="open", required=True)
-    temperature = fields.Float("Suhu saat diterima (°C)")
     received_by = fields.Char("Diterima oleh")
     received_at = fields.Datetime("Waktu terima")
     photo = fields.Image("Foto bukti", max_width=1600, max_height=1600)
@@ -210,17 +210,17 @@ class WmsPod(models.Model):
         base = self.env["ir.config_parameter"].sudo().get_param("web.base.url")
         return f"{base}/wms/pod/{self.token}"
 
-    def submit(self, temperature, received_by, lines, photo=None, remark=None):
+    def submit(self, received_by, lines, photo=None, remark=None):
         self.ensure_one()
         if self.state == "done":
             raise UserError(_("POD ini sudah diisi."))
-        if temperature in (None, ""):
-            raise UserError(_("Suhu wajib diisi."))
+        if not (received_by or "").strip():
+            raise UserError(_("Nama penerima wajib diisi."))
         for line in self.line_ids:
             if str(line.id) in lines:
                 line.qty_received = float(lines[str(line.id)].get("qty") or 0)
                 line.remark = lines[str(line.id)].get("remark")
-        self.write({"temperature": float(temperature), "received_by": received_by, "remark": remark,
+        self.write({"received_by": received_by, "remark": remark,
                     "photo": photo or False, "state": "done", "received_at": fields.Datetime.now()})
         self.picking_id._wms_set_stage("delivered")
         return True

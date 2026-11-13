@@ -3,6 +3,7 @@ from pathlib import Path
 
 from odoo.exceptions import UserError
 from odoo.tests import TransactionCase, tagged
+from odoo.tools.safe_eval import safe_eval
 
 DATA = Path(__file__).parent / "data"
 
@@ -74,18 +75,22 @@ class TestWms(TransactionCase):
 
     def test_zone_mismatch_is_refused(self):
         picking = self._receipt(self.milk, 5, self.fz_rack)
-        picking.wms_temperature_ids = [(0, 0, {"zone": "frozen", "temperature": -20, "source": "receipt"})]
         with self.assertRaisesRegex(UserError, "zona dry"):
             picking.button_validate()
 
-    def test_cold_receipt_needs_temperature_and_alarm_goes_to_quarantine(self):
+    def test_receipt_needs_dock_and_auto_quarantine(self):
+        dock = self.env["stock.location"].create({
+            "name": "DOCK_01", "barcode": "DOCK_01", "location_id": self.wh.lot_stock_id.id, "wms_area": "rcv"})
+        supplier = self.env["res.partner"].create({"name": "Leprino Foods"})
+        self.cheese.wms_auto_quarantine = True
         lot = self.env["stock.lot"].create({
             "name": "LEP-1", "product_id": self.cheese.id, "expiration_date": datetime.now() + timedelta(days=300)})
         picking = self._receipt(self.cheese, 12.5, self.fz_rack, lot)
-        with self.assertRaisesRegex(UserError, "Catat suhu"):
+        picking.partner_id = supplier
+        self.assertTrue(supplier.wms_is_source)
+        with self.assertRaisesRegex(UserError, "Loading dock"):
             picking.button_validate()
-        picking.wms_temperature_ids = [(0, 0, {"zone": "frozen", "temperature": -12, "source": "receipt"})]
-        self.assertTrue(picking.wms_temp_alarm)
+        picking.wms_dock_id = dock
         picking.button_validate()
         self.assertEqual(picking.state, "done")
         self.assertEqual(picking.move_line_ids.location_dest_id, self.fz_qc)
@@ -93,13 +98,15 @@ class TestWms(TransactionCase):
         self.assertEqual(sap.doc_type, "grpo")
         sap.action_post()
         self.assertEqual(sap.state, "posted")
+        sources = self.env["res.partner"].search(
+            safe_eval(self.env.ref("foodtrace.action_source_master").domain))
+        self.assertIn(supplier, sources)
 
     def test_receive_shelf_life_minimum(self):
         self.cheese.wms_min_receive_life_pct = 70
         lot = self.env["stock.lot"].create({
             "name": "LEP-OLD", "product_id": self.cheese.id, "expiration_date": datetime.now() + timedelta(days=60)})
         picking = self._receipt(self.cheese, 5, self.fz_rack, lot)
-        picking.wms_temperature_ids = [(0, 0, {"zone": "frozen", "temperature": -21, "source": "receipt"})]
         with self.assertRaisesRegex(UserError, "umur simpan"):
             picking.button_validate()
 
@@ -124,14 +131,6 @@ class TestWms(TransactionCase):
         self.assertEqual(picking.move_line_ids.lot_id.name, "L1")
         self.assertEqual(picking.wms_carton_count, 3)
 
-    def test_temperature_alarm_by_zone(self):
-        Log = self.env["wms.temperature.log"]
-        self.assertFalse(Log.create({"zone": "chilled", "temperature": -3.5}).is_alarm)
-        alarm = Log.create({"zone": "chilled", "temperature": 0.5})
-        self.assertTrue(alarm.is_alarm)
-        self.assertEqual(alarm.state, "open")
-        self.assertTrue(Log.create({"zone": "dry", "temperature": 21, "humidity": 80}).is_alarm)
-
     def test_sync_por_and_sor_files(self):
         Sync = self.env["wms.sync.document"]
         por = Sync.import_json((DATA / "POR-261000182.json").read_text())
@@ -140,6 +139,11 @@ class TestWms(TransactionCase):
         self.assertEqual(por.picking_id.owner_id, self.owner)
         self.assertEqual(por.picking_id.move_ids.product_uom_qty, 3600)
         self.assertEqual(por.partner_code, "VL0193")
+        self.assertEqual(por.picking_id.wms_vendor_ref, "IGU050/CMR/SC/2026 [A]")
+        self.assertTrue(por.picking_id.partner_id.wms_is_source)
+        inbound = self.env["stock.picking"].search(safe_eval(
+            self.env.ref("foodtrace.action_inbound_document").domain) + [("origin", "=", "01-IGU-POR-261000182")])
+        self.assertEqual(inbound, por.picking_id)
         sor = Sync.import_json((DATA / "SOR-261030260.json").read_text())
         self.assertEqual(sor.state, "done", sor.error)
         picking = sor.picking_id
@@ -153,6 +157,27 @@ class TestWms(TransactionCase):
         again = Sync.import_json((DATA / "SOR-261030260.json").read_text())
         self.assertEqual(again, sor)
 
+    def test_lpn_label_before_validation(self):
+        """Label dicetak saat palet ditutup di receiving, sebelum stok ada: isinya diambil dari baris penerimaan."""
+        lot = self.env["stock.lot"].create({
+            "name": "LEP-L", "product_id": self.cheese.id, "expiration_date": datetime(2027, 4, 30), "wms_grade": "A",
+            "wms_est": "ME 21"})
+        picking = self._receipt(self.cheese, 38.34, self.fz_rack, lot)
+        picking.wms_container_no = "MSKU1234567"
+        pack = self.env["stock.quant.package"].create({"wms_pallet_no": "P-01", "wms_packaging": "Karton 20 kg"})
+        picking.move_line_ids.result_package_id = pack
+        data = pack._wms_label_data()
+        self.assertEqual(data["code"], "HUS2LEP002")
+        self.assertEqual(data["qty"], "38.34")
+        self.assertEqual(data["exp"], "30-Apr-2027")
+        self.assertEqual((data["est"], data["grade"], data["container"], data["pallet"]),
+                         ("ME 21", "A", "MSKU1234567", "P-01"))
+        self.assertEqual(data["printed_by"], self.env.user.name)
+        html = self.env.ref("foodtrace.action_report_lpn_label")._render_qweb_html(
+            "foodtrace.report_lpn_label", pack.ids)[0].decode()
+        self.assertIn("Qty Tally/Karton", html)
+        self.assertIn("ME 21", html)
+
     def test_sync_unknown_item_is_error(self):
         doc = self.env["wms.sync.document"].import_json([{
             "number": "X-1", "outbound_type": "Sales Order", "warehouse": "01-IGU", "owner": "01-IGU",
@@ -165,12 +190,10 @@ class TestWms(TransactionCase):
         lot = self.env["stock.lot"].create({
             "name": "LEP-D", "product_id": self.cheese.id, "expiration_date": datetime.now() + timedelta(days=10)})
         self.env["stock.quant"]._update_available_quantity(self.cheese, self.fz_rack, 20, lot_id=lot)
-        self.env["wms.temperature.log"].create({"zone": "frozen", "temperature": -19.5, "location_id": self.fz.id})
         data = self.env["wms.dashboard"].summary()
         frozen = next(z for z in data["zones"] if z["zone"] == "frozen")
         self.assertEqual(frozen["value"], 20 * 95000)
         self.assertEqual(frozen["occupied"], 1)
-        self.assertEqual(frozen["last"], -19.5)
         self.assertEqual(data["kpi"]["near_count"], 1)
         self.assertEqual(data["expiry"]["by_zone"]["frozen"][1], 20 * 95000)
         self.assertEqual(len(data["flow"]["days"]), 30)
